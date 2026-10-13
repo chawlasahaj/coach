@@ -139,6 +139,56 @@ export function suggestWarmup(working, bodyweight) {
   return { kg: kg == null ? "" : fmtNum(Math.round((kg * 0.5) / 2.5) * 2.5), reps: "8" };
 }
 
+/* ---------- effort nudges ---------- */
+
+// The coach's RIR: "2" → {lo: 2, hi: 2}, "1-2" → {lo: 1, hi: 2}, anything else → null.
+export function rirRange(v) {
+  const m = String(v ?? "").match(/^\s*(\d+)\s*(?:(?:-|–|to)\s*(\d+))?\s*$/);
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = m[2] == null ? a : Number(m[2]);
+  return { lo: Math.min(a, b), hi: Math.max(a, b) };
+}
+
+const rirText = (r) => (r >= 5 ? "5+" : String(r));
+
+// One line under the set count that steers effort towards the coach's RIR: from the
+// set ticked most recently today, or before any, from last time. The coach's own
+// load is never second-guessed, so with a target kg the nudge is about reps.
+export function rirNudge(target, sets, last, bodyweight) {
+  const t = rirRange(target.rir);
+  if (!t) return null;
+  const goal = t.lo === t.hi ? String(t.hi) : `${t.lo}-${t.hi}`;
+  const more = bodyweight || target.kg != null ? "add 1–2 reps" : "add a little weight or 1–2 reps";
+  const rated = sets.filter((s) => s.type === "N" && s.done && numOrNull(s.rir) != null);
+  if (rated.length) {
+    const s = rated.reduce((a, b) => (String(b.at || "") >= String(a.at || "") ? b : a));
+    const r = numOrNull(s.rir);
+    const left = sets.some((x) => x.type === "N" && !x.done);
+    const was = `Last set: RIR ${rirText(r)}`;
+    if (r >= t.hi + 2) {
+      return { tone: "up", text: `${was}, target ${goal}. ${left ? `Next set, ${more}.` : `Next time, ${more}.`}` };
+    }
+    if (r === t.hi + 1) {
+      return { tone: "up", text: `${was}. ${left ? "One more rep next set" : "One more rep next time"} gets you to ${goal}.` };
+    }
+    if (r < t.lo) return { tone: "hold", text: `${was}, harder than planned. Keep this weight.` };
+    return { tone: "good", text: `${was}. Right on target.` };
+  }
+  if (target.kg != null) return null;
+  const before = (last?.sets || []).map((s) => numOrNull(s.rir)).filter((r) => r != null);
+  if (before.length && Math.min(...before) >= t.hi + 2) {
+    const easiest = Math.min(...before);
+    return {
+      tone: "up",
+      text: `Last time every set was RIR ${rirText(easiest)}${easiest >= 5 ? "" : " or more"}. Target ${goal}: ${
+        bodyweight ? "add reps today" : "go heavier today"
+      }.`,
+    };
+  }
+  return null;
+}
+
 /* ---------- local data merge ---------- */
 
 const pick = (o, fields) => Object.fromEntries(fields.map((f) => [f, o[f] ?? ""]));
