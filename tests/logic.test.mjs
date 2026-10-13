@@ -87,6 +87,51 @@ test("suggested reps stay inside the coach's range when a new phase moves it", (
   assert.deepEqual(L.suggest(L.toTarget({ reps: "max" }), last, 0, false), { kg: "20", reps: "12" });
 });
 
+test("rirRange reads the coach's RIR column", () => {
+  assert.deepEqual(L.rirRange("2"), { lo: 2, hi: 2 });
+  assert.deepEqual(L.rirRange(2), { lo: 2, hi: 2 });
+  assert.deepEqual(L.rirRange("1-2"), { lo: 1, hi: 2 });
+  assert.deepEqual(L.rirRange("2–1"), { lo: 1, hi: 2 });
+  assert.equal(L.rirRange(""), null);
+  assert.equal(L.rirRange("hard"), null);
+});
+
+test("rirNudge pushes towards the target RIR from today's last rated set", () => {
+  const t = L.toTarget({ reps: "6-8", target_rir: "2" });
+  const set = (rir, done = true, at = "2026-10-13T10:00:00Z", type = "N") => ({ type, rir, done, at });
+  assert.equal(L.rirNudge(L.toTarget({ reps: "8" }), [set("4")], null, false), null); // no target
+  assert.deepEqual(L.rirNudge(t, [set("4"), set("", false)], null, false), {
+    tone: "up",
+    text: "Last set: RIR 4, target 2. Next set, add a little weight or 1–2 reps.",
+  });
+  assert.equal(L.rirNudge(t, [set("5")], null, false).text, "Last set: RIR 5+, target 2. Next time, add a little weight or 1–2 reps.");
+  assert.equal(L.rirNudge(t, [set("5"), set("", false)], null, true).text, "Last set: RIR 5+, target 2. Next set, add 1–2 reps.");
+  assert.equal(L.rirNudge(t, [set("3"), set("", false)], null, false).text, "Last set: RIR 3. One more rep next set gets you to 2.");
+  assert.deepEqual(L.rirNudge(t, [set("2")], null, false), { tone: "good", text: "Last set: RIR 2. Right on target." });
+  assert.equal(L.rirNudge(t, [set("1")], null, false).tone, "hold");
+  // The most recently ticked set counts, not the last row; warm-ups and unrated sets don't.
+  const sets = [set("4", true, "2026-10-13T10:05:00Z"), set("2", true, "2026-10-13T10:01:00Z"), set("", true), set("0", true, "z", "W")];
+  assert.equal(L.rirNudge(t, sets, null, false).tone, "up");
+  // A range target: 3 is one over the top of 1-2.
+  assert.equal(L.rirNudge(L.toTarget({ target_rir: "1-2" }), [set("3")], null, false).text, "Last set: RIR 3. One more rep next time gets you to 1-2.");
+  // The coach set the load: talk about reps, not weight.
+  const heavy = L.toTarget({ target_kg: 40, target_rir: "2" });
+  assert.equal(L.rirNudge(heavy, [set("4"), set("", false)], null, false).text, "Last set: RIR 4, target 2. Next set, add 1–2 reps.");
+});
+
+test("rirNudge says go heavier when every set last time was easy", () => {
+  const t = L.toTarget({ reps: "6-8", target_rir: "2" });
+  const easy = { sets: [{ kg: 40, reps: 8, rir: "4" }, { kg: 40, reps: 8, rir: "5" }] };
+  const mixed = { sets: [{ kg: 40, reps: 8, rir: "4" }, { kg: 40, reps: 8, rir: "2" }] };
+  assert.deepEqual(L.rirNudge(t, [], easy, false), { tone: "up", text: "Last time every set was RIR 4 or more. Target 2: go heavier today." });
+  assert.equal(L.rirNudge(t, [], { sets: [{ rir: "5" }] }, true).text, "Last time every set was RIR 5+. Target 2: add reps today.");
+  assert.equal(L.rirNudge(t, [], mixed, false), null);
+  assert.equal(L.rirNudge(t, [], { sets: [{ kg: 40, reps: 8, rir: "" }] }, false), null);
+  assert.equal(L.rirNudge(t, [], null, false), null);
+  // Not when the coach has set today's load.
+  assert.equal(L.rirNudge(L.toTarget({ target_kg: 40, target_rir: "2" }), [], easy, false), null);
+});
+
 test("warm-up suggestion is half the working load, rounded to 2.5", () => {
   assert.deepEqual(L.suggestWarmup({ kg: "50" }, false), { kg: "25", reps: "8" });
   assert.deepEqual(L.suggestWarmup({ kg: "12" }, false), { kg: "5", reps: "8" });

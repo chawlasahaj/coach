@@ -267,6 +267,7 @@ function viewWorkout(d) {
       ? `All ${working.length} sets done`
       : `Set ${doneN + 1} of ${working.length}`;
   const rest = restInfo();
+  const nudge = showRir ? L.rirNudge(ex.target, ex.sets, last, bw) : null;
   const grid = `grid${bw ? " no-kg" : ""}${showRir ? "" : " no-rir"}`;
 
   const strip = a.exercises
@@ -328,6 +329,7 @@ function viewWorkout(d) {
   <main class="page with-cta">
     <h1 class="extitle">${esc(ex.name)}</h1>
     <p class="setlabel">${label}</p>
+    ${nudge ? `<p class="nudge ${nudge.tone}" role="status">${esc(nudge.text)}</p>` : ""}
     ${ex.swappedFrom ? `<button class="swapnote" data-a="swap">${icon("swap", 16)}<span>Instead of ${esc(ex.swappedFrom)}</span></button>` : ""}
     ${ex.target.note ? `<div class="callout small">${esc(ex.target.note)}</div>` : ""}
     <div class="pills" data-keep="pills">
@@ -657,11 +659,12 @@ function centerTile() {
 }
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, ms = 2400) {
   $toast.textContent = msg;
+  $toast.classList.toggle("long", msg.length > 32);
   $toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $toast.classList.remove("show"), 2400);
+  toastTimer = setTimeout(() => $toast.classList.remove("show"), ms);
 }
 
 /* ---------- workout actions ---------- */
@@ -1010,6 +1013,12 @@ const A = {
     saveActive();
     S.sheet = null;
     render();
+    // The same line sits under the set count, but that can be scrolled out of view by now.
+    if (s.done && s.type === "N" && s.rir !== "") {
+      const d = data();
+      const n = L.rirNudge(ex.target, ex.sets, L.lastPerformance(d.log, ex.name, S.active.instance_id), !!libFor(d, ex.name).bodyweight);
+      if (n) toast(n.text, 4000);
+    }
   },
   setmenu(el) {
     openSheet({ type: "setmenu", si: Number(el.dataset.si) });

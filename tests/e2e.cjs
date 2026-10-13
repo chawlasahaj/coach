@@ -65,6 +65,13 @@ async function run(name, device) {
   check((await page.textContent('.cell.rir[data-si="1"]')).trim() === "2", "RIR saved on the set");
   check((await page.textContent("[data-rest]")).trim() !== "0:00", "rest timer started");
   check((await page.textContent(".setlabel")).includes("Set 2 of 3"), "label moves to set 2 of 3");
+  check((await page.textContent(".nudge")).includes("Right on target"), "effort nudge confirms an on-target set");
+  await page.click('.cell.rir[data-si="1"]');
+  await page.click('.rirbtn[data-v="4"]');
+  check((await page.textContent(".nudge")).includes("Next set, add 1–2 reps"), "an easy set nudges for more reps (coach set the load)");
+  check((await page.textContent("#toast")).includes("Next set, add 1–2 reps"), "the nudge also pops up, in case the line is scrolled away");
+  await page.click('.cell.rir[data-si="1"]');
+  await page.click('.rirbtn[data-v="2"]');
   await shot("4-logged");
 
   await page.click("[data-a=toggleLast]");
