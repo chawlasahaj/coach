@@ -96,7 +96,7 @@ To build a block quickly, copy one week's rows, paste them below, then change th
 - `secondary_muscles`: shown as outlined chips.
 - `bodyweight`: tick it to hide the kg box.
 - `cues`: shown under **Info**.
-- `pattern`: the movement (squat, lunge, hinge, h-push, v-push, h-pull, v-pull, carry, core, arms, shoulders, calves). Pick it from the dropdown.
+- `pattern`: the movement (squat, lunge, hinge, glutes, h-push, v-push, h-pull, v-pull, carry, core, arms, shoulders, calves). `glutes` is for glute isolation work like abduction and kickbacks. Pick it from the dropdown.
 - `equipment`: what it needs, comma-separated: dumbbells, barbell, rack, bench, cable, machine, band, kettlebell, pull-up bar, bodyweight.
 - `swaps`: your preferred alternatives, comma-separated, best first. Use names exactly as they appear in this tab.
 - `avoid_for`: injury flags this exercise is wrong for, e.g. `wrist` or `back, knee`. Matched against each client's `flags`.
