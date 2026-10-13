@@ -39,7 +39,7 @@ var PROGRAM_FIELDS = ["session", "session_name", "order", "exercise", "sets", "r
 var EXERCISE_FIELDS = ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps"];
 var LOG_FIELDS = ["entry_id", "instance_id", "date", "logged_at", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir", "swapped_from"];
 // The movement patterns the Exercises tab offers in its dropdown. Swaps are found within a pattern.
-var PATTERNS = ["squat", "lunge", "hinge", "h-push", "v-push", "h-pull", "v-pull", "carry", "core", "arms", "shoulders", "calves"];
+var PATTERNS = ["squat", "lunge", "hinge", "glutes", "h-push", "v-push", "h-pull", "v-pull", "carry", "core", "arms", "shoulders", "calves"];
 var SESSION_FIELDS = ["instance_id", "session", "session_name", "date", "started_at", "finished_at", "duration_min", "sets_done", "note"];
 // If one of these does get mangled into a date, read it back as "M-D".
 var RANGE_FIELDS = { reps: true, target_rir: true };
