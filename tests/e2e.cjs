@@ -99,6 +99,7 @@ async function run(name, device) {
 
   await page.click("[data-a=finish]");
   await page.waitForSelector(".stats");
+  check((await page.textContent("[data-a=logAll]")).includes("numbers shown"), "finish offers to log the unticked sets");
   await page.fill("#fnote", "Felt strong today");
   await shot("7-finish");
   await page.click("[data-a=finishSave]");
@@ -177,6 +178,16 @@ async function run(name, device) {
   await page.click("[data-a=restSkip]");
   check((await page.textContent("[data-rest]")).trim() === "0:00", "rest can be skipped");
   await page.click('.chk[data-si="0"]');
+  // Log everything else from the suggestions, then throw it all away.
+  await page.click("[data-a=menu]");
+  await page.click(".panel [data-a=finish]");
+  await page.waitForSelector("[data-a=logAll]");
+  await page.click("[data-a=logAll]");
+  check((await page.textContent("#toast")).startsWith("Logged"), "log-all ticks the rest");
+  check(await page.locator("[data-a=logAll]").count() === 0, "nothing left unticked after log-all");
+  check(Number(await page.textContent(".stats div:nth-child(2) b")) > 1, "the summary counts the logged sets");
+  await page.click("[data-a=backToWorkout]");
+  await page.waitForSelector(".srow");
   await page.click("[data-a=menu]");
   await page.click("[data-a=discard]");
   await page.click("[data-a=discardYes]");

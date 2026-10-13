@@ -133,10 +133,22 @@ export function suggest(target, last, idx, bodyweight) {
   return { kg: kg == null ? "" : fmtNum(kg), reps: reps == null ? "" : String(reps) };
 }
 
-export function suggestWarmup(working, bodyweight) {
+// Warm-ups climb towards the first working set: light and longer first, heavier and
+// shorter last. [share of the working load, reps] for 1, 2, 3 and 4+ warm-up sets.
+const RAMPS = [
+  [[0.5, 10]],
+  [[0.5, 10], [0.75, 4]],
+  [[0.4, 10], [0.6, 5], [0.8, 3]],
+  [[0.4, 10], [0.55, 6], [0.7, 4], [0.85, 2]],
+];
+
+// Warm-up `idx` of `count`, rounded to 2.5 kg and never under `minKg` (the empty bar).
+export function suggestWarmup(working, bodyweight, idx = 0, count = 1, minKg = 0) {
   if (bodyweight) return { kg: "", reps: "5" };
+  const ramp = RAMPS[Math.min(Math.max(count, 1), RAMPS.length) - 1];
+  const [share, reps] = ramp[Math.min(Math.max(idx, 0), ramp.length - 1)];
   const kg = numOrNull(working.kg);
-  return { kg: kg == null ? "" : fmtNum(Math.round((kg * 0.5) / 2.5) * 2.5), reps: "8" };
+  return { kg: kg == null ? "" : fmtNum(Math.max(minKg, Math.round((kg * share) / 2.5) * 2.5)), reps: String(reps) };
 }
 
 /* ---------- effort nudges ---------- */
@@ -150,40 +162,60 @@ export function rirRange(v) {
   return { lo: Math.min(a, b), hi: Math.max(a, b) };
 }
 
+// The coach's RIR for working set n (from 1). "1, 2, 3, 3" gives each set its own: a top
+// set, then back-offs. The last one carries on for any extra sets.
+export function rirFor(target, n) {
+  const list = String(target.rir ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  return list.length ? list[Math.min(Math.max(n, 1), list.length) - 1] : "";
+}
+
+const perSetRir = (target) => String(target.rir ?? "").includes(",");
+
 const rirText = (r) => (r >= 5 ? "5+" : String(r));
 
 // One line under the set count that steers effort towards the coach's RIR: from the
 // set ticked most recently today, or before any, from last time. The coach's own
 // load is never second-guessed, so with a target kg the nudge is about reps.
 export function rirNudge(target, sets, last, bodyweight) {
-  const t = rirRange(target.rir);
-  if (!t) return null;
-  const goal = t.lo === t.hi ? String(t.hi) : `${t.lo}-${t.hi}`;
+  const goalOf = (n) => rirRange(rirFor(target, n));
+  const label = (t) => (t.lo === t.hi ? String(t.hi) : `${t.lo}-${t.hi}`);
+  // With a target per set, the next set has its own plan (a back-off, say): talk about next time.
+  const perSet = perSetRir(target);
   const more = bodyweight || target.kg != null ? "add 1–2 reps" : "add a little weight or 1–2 reps";
-  const rated = sets.filter((s) => s.type === "N" && s.done && numOrNull(s.rir) != null);
+  let n = 0;
+  const rated = [];
+  for (const s of sets) {
+    if (s.type !== "N") continue;
+    n += 1;
+    if (s.done && numOrNull(s.rir) != null) rated.push({ s, n });
+  }
   if (rated.length) {
-    const s = rated.reduce((a, b) => (String(b.at || "") >= String(a.at || "") ? b : a));
+    const { s, n: k } = rated.reduce((a, b) => (String(b.s.at || "") >= String(a.s.at || "") ? b : a));
+    const t = goalOf(k);
+    if (!t) return null;
     const r = numOrNull(s.rir);
-    const left = sets.some((x) => x.type === "N" && !x.done);
+    const soon = sets.some((x) => x.type === "N" && !x.done) && !perSet;
     const was = `Last set: RIR ${rirText(r)}`;
     if (r >= t.hi + 2) {
-      return { tone: "up", text: `${was}, target ${goal}. ${left ? `Next set, ${more}.` : `Next time, ${more}.`}` };
+      return { tone: "up", text: `${was}, target ${label(t)}. ${soon ? `Next set, ${more}.` : `Next time, ${more}.`}` };
     }
     if (r === t.hi + 1) {
-      return { tone: "up", text: `${was}. ${left ? "One more rep next set" : "One more rep next time"} gets you to ${goal}.` };
+      return { tone: "up", text: `${was}. ${soon ? "One more rep next set" : "One more rep next time"} gets you to ${label(t)}.` };
     }
     if (r < t.lo) return { tone: "hold", text: `${was}, harder than planned. Keep this weight.` };
     return { tone: "good", text: `${was}. Right on target.` };
   }
   if (target.kg != null) return null;
-  const before = (last?.sets || []).map((s) => numOrNull(s.rir)).filter((r) => r != null);
-  if (before.length && Math.min(...before) >= t.hi + 2) {
-    const easiest = Math.min(...before);
+  const before = (last?.sets || [])
+    .map((s, i) => ({ r: numOrNull(s.rir), t: goalOf(numOrNull(s.set_no) ?? i + 1) }))
+    .filter((x) => x.r != null && x.t);
+  if (before.length && before.every((x) => x.r >= x.t.hi + 2)) {
+    const today = bodyweight ? "add reps today" : "go heavier today";
+    if (perSet) return { tone: "up", text: `Last time every set had 2 or more reps to spare. Go ${bodyweight ? "for more reps" : "heavier"} today.` };
+    const easiest = Math.min(...before.map((x) => x.r));
     return {
       tone: "up",
-      text: `Last time every set was RIR ${rirText(easiest)}${easiest >= 5 ? "" : " or more"}. Target ${goal}: ${
-        bodyweight ? "add reps today" : "go heavier today"
-      }.`,
+      text: `Last time every set was RIR ${rirText(easiest)}${easiest >= 5 ? "" : " or more"}. Target ${label(before[0].t)}: ${today}.`,
     };
   }
   return null;
@@ -340,7 +372,7 @@ export function planLine(t) {
   const r = repsLabel(t.reps);
   parts.push(r ? `${t.sets} × ${r}` : `${t.sets} sets`);
   if (t.kg != null) parts.push(`${fmtNum(t.kg)} kg`);
-  if (t.rir) parts.push(`RIR ${t.rir}`);
+  if (t.rir) parts.push(`RIR ${String(t.rir).split(",").map((x) => x.trim()).filter(Boolean).join(", ")}`);
   return parts.join(" · ");
 }
 

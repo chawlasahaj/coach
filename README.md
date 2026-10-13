@@ -82,9 +82,9 @@ Use one row per exercise per session.
 | `sets` | Number of working sets. |
 | `reps` | `8-10`, `12`, or text like `30s`. |
 | `target_kg` | Optional. When blank, the app suggests last time's weight. |
-| `target_rir` | Optional, e.g. `2` or `1-2`. |
+| `target_rir` | Optional, e.g. `2` or `1-2`. For a top set and back-offs, give one per set: `1, 2, 3, 3`. After each set the app tells the client if they stopped short of it. |
 | `rest_sec` | Rest timer after each set. Defaults to 90. |
-| `warmup_sets` | Warm-up rows added at the top. Defaults to 0. |
+| `warmup_sets` | Warm-up rows added at the top. Defaults to 0. They ramp up towards the first working set (e.g. 40% × 10, 60% × 5, 80% × 3), never under the 20 kg bar on barbell lifts. |
 | `note` | Shown to the client under the exercise name, e.g. "Pain-free depth only". |
 
 To build a block quickly, copy one week's rows, paste them below, then change the session numbers and loads.

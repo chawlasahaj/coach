@@ -143,6 +143,7 @@ a { color: inherit; }
 .callout b { color: var(--ink); }
 .callout.small { font-size: 14px; padding: 10px 12px; margin: 10px 0 2px; }
 .callout.warn { background: var(--warn-soft); color: var(--warn); }
+.callout .linkbtn { display: block; margin-top: 6px; color: inherit; font-weight: 600; }
 
 /* ---------- home: muscles ---------- */
 
