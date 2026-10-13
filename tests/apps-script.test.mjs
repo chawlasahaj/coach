@@ -41,7 +41,7 @@ test("setup can be re-run without duplicating anything", () => {
   ctx.setup();
   assert.equal(rowsOf(sheets.get("Clients")).length, 1);
   assert.equal(rowsOf(sheets.get("Program")).length, 8);
-  assert.equal(sheets.get("Log").getLastColumn(), 13);
+  assert.equal(sheets.get("Log").getLastColumn(), 14);
 });
 
 test("bad and inactive links are refused", () => {
@@ -133,12 +133,45 @@ test("checkbox columns (which read FALSE on empty rows) don't push data to the b
   assert.equal(clients.get(5, 4), false); // the empty rows below really do read FALSE
   // The coach adds a "reviewed" checkbox column to Log.
   const log = sheets.get("Log");
-  log.getRange(1, 14).setValue("reviewed");
-  log.getRange(2, 14, 999, 1).setDataValidation({ checkbox: true });
+  log.getRange(1, 15).setValue("reviewed");
+  log.getRange(2, 15, 999, 1).setDataValidation({ checkbox: true });
   post(ctx, { token, ops: [setOp()] });
   assert.equal(log.get(2, 13), "i1.0.1");
-  assert.equal(log.get(2, 14), false); // their column is left as it was
+  assert.equal(log.get(2, 15), false); // their column is left as it was
   // A second client typed in by hand under the test client is found.
   clients.getRange(3, 1, 1, 5).setValues([["mum", "Mum", "'mumtoken99", true, true]]);
   assert.equal(get(ctx, { action: "bootstrap", token: "mumtoken99" }).client.name, "Mum");
+});
+
+test("the app gets the whole library except what's flagged for this client", () => {
+  const { ctx, sheets, token } = setUp();
+  const ex = sheets.get("Exercises");
+  const h = rowsOf(ex).length + 2;
+  ex.getRange(h, 1, 3, 10).setValues([
+    ["Leg Press", "", "Quads, Glutes", "", false, "", "squat", "machine", "", ""],
+    ["Bulgarian Split Squat", "", "Quads, Glutes", "", false, "", "lunge", "dumbbells, bench", "", "Knee"],
+    ["Barbell Back Squat", "", "Quads", "", false, "", "squat", "barbell, rack", "", "back; knee"],
+  ]);
+  let names = get(ctx, { action: "bootstrap", token }).exercises.map((e) => e.exercise);
+  assert.ok(names.includes("Leg Press") && names.includes("Bulgarian Split Squat") && names.includes("Barbell Back Squat"));
+  // A knee flag drops both knee-flagged swaps, but never what the coach programmed.
+  sheets.get("Clients").getRange(2, 7).setValue("knee, wrist");
+  ex.getRange(2, 10).setValue("knee"); // flag Goblet Squat too: it's in the program
+  const boot = get(ctx, { action: "bootstrap", token });
+  names = boot.exercises.map((e) => e.exercise);
+  assert.ok(names.includes("Leg Press"));
+  assert.ok(!names.includes("Bulgarian Split Squat") && !names.includes("Barbell Back Squat"));
+  assert.ok(names.includes("Goblet Squat"));
+  assert.equal(boot.exercises.find((e) => e.exercise === "Leg Press").pattern, "squat");
+  assert.equal("avoid_for" in boot.exercises[0], false); // flags never leave the Sheet
+  assert.equal("flags" in boot.client, false);
+});
+
+test("a swapped set records what it replaced", () => {
+  const { ctx, sheets, token } = setUp();
+  post(ctx, { token, ops: [setOp({ exercise: "Leg Press", swapped_from: "Goblet Squat" })] });
+  const row = rowsOf(sheets.get("Log"))[0];
+  assert.equal(row.exercise, "Leg Press");
+  assert.equal(row.swapped_from, "Goblet Squat");
+  assert.equal(get(ctx, { action: "bootstrap", token }).log[0].swapped_from, "Goblet Squat");
 });

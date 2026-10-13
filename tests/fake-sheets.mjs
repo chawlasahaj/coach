@@ -157,6 +157,9 @@ export function makeEnv() {
       this.checkbox = true;
       return this;
     },
+    requireValueInList() {
+      return this;
+    },
     setAllowInvalid() {
       return this;
     },

@@ -4,7 +4,7 @@ A phone and iPad web app for your clients: it shows the next session from your p
 
 You write plans in a Google Sheet. Everything clients log lands back in that Sheet. Running it costs nothing.
 
-**Try it first:** open <https://chawlasahaj.github.io/coach/?u=demo> once it's published (step 3). Locally, run `npm run serve` and open <http://localhost:4173/?u=demo>. The demo saves only on that device.
+**Try it first:** open `https://<your-username>.github.io/coach/?u=demo` once it's published (step 3). Locally, run `npm run serve` and open <http://localhost:4173/?u=demo>. The demo saves only on that device.
 
 ```
   web/                 the app: static files, no build step
@@ -43,8 +43,8 @@ The repo already has a workflow (`.github/workflows/pages.yml`) that tests the a
 
 1. In this repo on GitHub, open **Settings → Pages**. Under **Build and deployment → Source**, choose **GitHub Actions**. That's the only setting.
 2. Publish: **Actions → Publish → Run workflow**. After that, every push to `main` publishes by itself in about a minute.
-3. The app is at **https://chawlasahaj.github.io/coach/**, and `…/coach/?u=demo` is the demo.
-4. In the Sheet's **Settings** tab, put `https://chawlasahaj.github.io/coach/` in `app_url`.
+3. The app is at **`https://<your-username>.github.io/coach/`**, and `…/coach/?u=demo` is the demo.
+4. In the Sheet's **Settings** tab, put that address in `app_url`.
 
 GitHub says Pages isn't meant to run a business; a free tool for a few people is a grey area rather than a clear breach. To move later, Cloudflare Pages is free and allows commercial use: connect this repo with no build command and output directory `web`, then update `app_url` and resend the links. Nothing in the Sheet changes.
 
@@ -55,6 +55,7 @@ GitHub says Pages isn't meant to run a business; a free tool for a few people is
    - `name`: what the app greets them with
    - tick `show_rir` and `active`
    - `notes` is yours only; the app never sends it
+   - `flags`: injuries to work around, e.g. `wrist, knee`. The Swap button never offers this person an exercise whose `avoid_for` matches. Flags stay in the Sheet; the app never receives them
 2. Click that row, then **Coach → Make link for selected client**. Copy the link and send it on WhatsApp.
 3. Try the *Test* client's link yourself first.
 
@@ -95,6 +96,19 @@ To build a block quickly, copy one week's rows, paste them below, then change th
 - `secondary_muscles`: shown as outlined chips.
 - `bodyweight`: tick it to hide the kg box.
 - `cues`: shown under **Info**.
+- `pattern`: the movement (squat, lunge, hinge, h-push, v-push, h-pull, v-pull, carry, core, arms, shoulders, calves). Pick it from the dropdown.
+- `equipment`: what it needs, comma-separated: dumbbells, barbell, rack, bench, cable, machine, band, kettlebell, pull-up bar, bodyweight.
+- `swaps`: your preferred alternatives, comma-separated, best first. Use names exactly as they appear in this tab.
+- `avoid_for`: injury flags this exercise is wrong for, e.g. `wrist` or `back, knee`. Matched against each client's `flags`.
+
+### Swapping exercises
+
+When a machine or bench is taken, the client taps **Swap** in the workout:
+
+- **Choices:** your `swaps` for that exercise come first, then everything else in the library with the same `pattern`, closest muscles first.
+- **Not available today:** chips like *Bench* or *Cable* hide anything that needs that equipment.
+- **Injury flags:** anything flagged in `avoid_for` for that client is never offered.
+- **Today only:** a swap lasts for that workout; the plan in the Sheet doesn't change. Each logged set records what it replaced in the Log tab's `swapped_from` column.
 
 The body diagram knows these muscles: Chest, Front Delts, Side Delts, Rear Delts, Shoulders, Biceps, Triceps, Forearms, Abs, Core, Obliques, Quads, Adductors, Hamstrings, Glutes, Calves, Lats, Upper Back, Traps and Lower Back. Any other name gets a plain figure.
 
@@ -108,7 +122,7 @@ The body diagram knows these muscles: Chest, Front Delts, Side Delts, Rear Delts
 ## Changing things later
 
 - **Plan edits** show up the next time the client opens the app.
-- **After editing `Code.gs`:** use **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. Making a *new* deployment changes the URL; editing the existing one keeps it.
+- **After editing `Code.gs`:** paste it into Apps Script, run **setup** once (it adds any new columns and dropdowns), then **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**. Making a *new* deployment changes the URL; editing the existing one keeps it.
 - **App changes:** merge to `main`; the workflow tests and republishes. Phones pick up the new version the next time it's opened, occasionally the time after.
 - **Renaming the app:** change "Coach Sahaj" in `web/config.js`, `web/index.html` and `web/manifest.webmanifest`.
 - **A link leaks:** clear that client's `token` in Clients and make a new link.
