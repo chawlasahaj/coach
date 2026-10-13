@@ -132,11 +132,48 @@ test("rirNudge says go heavier when every set last time was easy", () => {
   assert.equal(L.rirNudge(L.toTarget({ target_kg: 40, target_rir: "2" }), [], easy, false), null);
 });
 
-test("warm-up suggestion is half the working load, rounded to 2.5", () => {
-  assert.deepEqual(L.suggestWarmup({ kg: "50" }, false), { kg: "25", reps: "8" });
-  assert.deepEqual(L.suggestWarmup({ kg: "12" }, false), { kg: "5", reps: "8" });
-  assert.deepEqual(L.suggestWarmup({ kg: "" }, false), { kg: "", reps: "8" });
+test("one warm-up is half the working load, rounded to 2.5", () => {
+  assert.deepEqual(L.suggestWarmup({ kg: "50" }, false), { kg: "25", reps: "10" });
+  assert.deepEqual(L.suggestWarmup({ kg: "12" }, false), { kg: "5", reps: "10" });
+  assert.deepEqual(L.suggestWarmup({ kg: "" }, false), { kg: "", reps: "10" });
+  assert.deepEqual(L.suggestWarmup({ kg: "50" }, true), { kg: "", reps: "5" });
 });
+
+test("several warm-ups ramp up to the working load", () => {
+  const ramp = (kg, count, bar = 0) =>
+    Array.from({ length: count }, (_, i) => L.suggestWarmup({ kg: String(kg) }, false, i, count, bar)).map((w) => `${w.kg}x${w.reps}`);
+  assert.deepEqual(ramp(60, 2), ["30x10", "45x4"]);
+  assert.deepEqual(ramp(65, 3), ["25x10", "40x5", "52.5x3"]);
+  assert.deepEqual(ramp(100, 4), ["40x10", "55x6", "70x4", "85x2"]);
+  assert.deepEqual(ramp(100, 6).slice(4), ["85x2", "85x2"]); // more than 4: the last step repeats
+  // Barbell lifts never go under the empty bar.
+  assert.deepEqual(ramp(30, 2, 20), ["20x10", "22.5x4"]);
+});
+
+test("rirFor gives each working set its own target when there's a list", () => {
+  assert.equal(L.rirFor(L.toTarget({ target_rir: "2" }), 3), "2");
+  assert.equal(L.rirFor(L.toTarget({ target_rir: "1-2" }), 1), "1-2");
+  const t = L.toTarget({ target_rir: "1, 2, 3,3" });
+  assert.deepEqual([1, 2, 3, 4, 5].map((n) => L.rirFor(t, n)), ["1", "2", "3", "3", "3"]);
+  assert.equal(L.rirFor(L.toTarget({ target_rir: "" }), 1), "");
+  assert.equal(L.planLine(L.toTarget({ sets: 4, reps: "8-10", target_rir: "1,2,3,3" })), "4 × 8–10 · RIR 1, 2, 3, 3");
+});
+
+test("rirNudge uses each set's own target from a list", () => {
+  const t = L.toTarget({ reps: "8-10", target_rir: "1, 2, 3" });
+  const set = (rir, done, at) => ({ type: "N", rir, done, at });
+  // Top set at RIR 3 against a target of 1: about next time, since the next set is a planned back-off.
+  assert.equal(L.rirNudge(t, [set("3", true, "a"), set("", false)], null, false).text, "Last set: RIR 3, target 1. Next time, add a little weight or 1–2 reps.");
+  // Set 3's target is 3, so RIR 3 there is on target.
+  assert.equal(L.rirNudge(t, [set("1", true, "a"), set("2", true, "b"), set("3", true, "c")], null, false).tone, "good");
+  // Last time: easy against every set's own target.
+  const easy = { sets: [{ set_no: 1, rir: "3" }, { set_no: 2, rir: "4" }, { set_no: 3, rir: "5" }] };
+  assert.equal(L.rirNudge(t, [], easy, false).text, "Last time every set had 2 or more reps to spare. Go heavier today.");
+  const fine = { sets: [{ set_no: 1, rir: "3" }, { set_no: 2, rir: "3" }, { set_no: 3, rir: "5" }] };
+  assert.equal(L.rirNudge(t, [], fine, false), null);
+});
+
+
 
 test("applyOps upserts sets, deletes them, and records finished sessions", () => {
   let db = { log: [], sessions: [] };

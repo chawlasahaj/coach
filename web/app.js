@@ -242,10 +242,19 @@ function numbering(ex) {
   return ex.sets.map((s) => (s.type === "W" ? ++w : ++n));
 }
 
-function suggestions(ex, last, bw) {
+// Barbell warm-ups start at the empty bar.
+const barKg = (lib) => (L.splitList(lib.equipment).some((q) => L.norm(q) === "barbell") ? 20 : 0);
+
+function suggestions(ex, last, lib) {
+  const bw = !!lib.bodyweight;
   const nums = numbering(ex);
   const firstWorking = L.suggest(ex.target, last, 0, bw);
-  return ex.sets.map((s, i) => (s.type === "W" ? L.suggestWarmup(firstWorking, bw) : L.suggest(ex.target, last, nums[i] - 1, bw)));
+  const warmups = ex.sets.filter((s) => s.type === "W").length;
+  return ex.sets.map((s, i) =>
+    s.type === "W"
+      ? L.suggestWarmup(firstWorking, bw, nums[i] - 1, warmups, barKg(lib))
+      : L.suggest(ex.target, last, nums[i] - 1, bw),
+  );
 }
 
 function viewWorkout(d) {
@@ -256,7 +265,7 @@ function viewWorkout(d) {
   const showRir = d.client.show_rir;
   const last = L.lastPerformance(d.log, ex.name, a.instance_id);
   const nums = numbering(ex);
-  const sugg = suggestions(ex, last, bw);
+  const sugg = suggestions(ex, last, lib);
   const working = ex.sets.filter((s) => s.type === "N");
   const doneN = working.filter((s) => s.done).length;
   const wCount = ex.sets.length - working.length;
@@ -298,7 +307,7 @@ function viewWorkout(d) {
       const n = s.type === "W" ? "W" : nums[i];
       const rirCell = showRir
         ? `<button class="cell rir" data-a="rir" data-si="${i}" aria-label="Set ${n} reps in reserve">${
-            s.rir !== "" ? esc(s.rir === "5" ? "5+" : s.rir) : `<span class="ph">${esc(s.type === "W" ? "–" : ex.target.rir || "–")}</span>`
+            s.rir !== "" ? esc(s.rir === "5" ? "5+" : s.rir) : `<span class="ph">${esc(s.type === "W" ? "–" : L.rirFor(ex.target, nums[i]) || "–")}</span>`
           }</button>`
         : "";
       return `<div class="srow ${grid}${s.done ? " done" : ""}">
@@ -396,7 +405,10 @@ function viewFinish(d) {
     <h1 class="title">${sum.sets ? `Nice work${name}` : "Nothing ticked yet"}</h1>
     <p class="sub">${esc(a.session_name)}</p>
     ${stats(sum)}
-    ${sum.unticked && sum.sets ? `<div class="callout warn">${plural(sum.unticked, "planned set")} not ticked. Unticked sets aren't saved.</div>` : ""}
+    ${sum.unticked
+      ? `<div class="callout warn">${plural(sum.unticked, "planned set")} not ticked. Unticked sets aren't saved.
+          <button class="linkbtn" data-a="logAll">Log ${sum.unticked === 1 ? "it" : "them"} with the numbers shown</button></div>`
+      : ""}
     <ul class="sumlist">${sum.lines
       .map((l) => `<li><span class="sname">${esc(l.name)}</span><span class="ssets">${l.sets.map((s) => esc(L.setText(s, bwFor(l.name)))).join(" · ")}</span></li>`)
       .join("")}</ul>
@@ -487,9 +499,10 @@ const SHEETS = {
     const ex = cur();
     const s = ex.sets[S.sheet.si];
     const n = numbering(ex)[S.sheet.si];
+    const goal = s.type === "W" ? "" : L.rirFor(ex.target, n);
     return `<h2 class="sh-title">Reps in reserve</h2>
       <p class="sh-sub">Set ${s.type === "W" ? "W" : n}: how many more reps could you have done with good form?</p>
-      ${ex.target.rir ? `<p class="sh-sub">Your coach's target: <b>${esc(ex.target.rir)}</b></p>` : ""}
+      ${goal ? `<p class="sh-sub">Your coach's target: <b>${esc(goal)}</b></p>` : ""}
       <div class="rirgrid">${RIR_LABELS.map(
         (lab, v) => `<button class="rirbtn${s.rir === String(v) ? " on" : ""}" data-a="setRir" data-v="${v}"><b>${v === 5 ? "5+" : v}</b><span>${lab}</span></button>`,
       ).join("")}</div>
@@ -768,7 +781,7 @@ function commitSuggestion(ex, si, d) {
   const lib = libFor(d, ex.name);
   const bw = !!lib.bodyweight;
   const last = L.lastPerformance(d.log, ex.name, S.active.instance_id);
-  const sg = suggestions(ex, last, bw)[si];
+  const sg = suggestions(ex, last, lib)[si];
   const s = ex.sets[si];
   if (!bw && s.kg === "") s.kg = sg.kg;
   if (s.reps === "") s.reps = sg.reps;
@@ -1047,6 +1060,30 @@ const A = {
     S.view = "finish";
     render();
     scrollTop();
+  },
+  // Ticks every working set left, using what's typed or suggested; sets with nothing to go on stay.
+  logAll() {
+    const d = data();
+    const at = new Date().toISOString();
+    let logged = 0;
+    let blank = 0;
+    S.active.exercises.forEach((ex, i) => {
+      let changed = false;
+      ex.sets.forEach((s, si) => {
+        if (s.done || s.type !== "N") return;
+        if (commitSuggestion(ex, si, d)) {
+          blank += 1;
+          return;
+        }
+        Object.assign(s, { done: true, at });
+        logged += 1;
+        changed = true;
+      });
+      if (changed) queueExercise(i);
+    });
+    saveActive();
+    render();
+    toast(blank ? `Logged ${plural(logged, "set")}. ${plural(blank, "set")} had no numbers to use.` : `Logged ${plural(logged, "set")}`, 3500);
   },
   backToWorkout() {
     S.view = "workout";
