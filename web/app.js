@@ -328,11 +328,13 @@ function viewWorkout(d) {
   <main class="page with-cta">
     <h1 class="extitle">${esc(ex.name)}</h1>
     <p class="setlabel">${label}</p>
+    ${ex.swappedFrom ? `<button class="swapnote" data-a="swap">${icon("swap", 16)}<span>Instead of ${esc(ex.swappedFrom)}</span></button>` : ""}
     ${ex.target.note ? `<div class="callout small">${esc(ex.target.note)}</div>` : ""}
     <div class="pills" data-keep="pills">
       <a class="pill" href="${esc(L.videoHref(lib.video_url, ex.name))}" target="_blank" rel="noopener">${icon("play", 18)}<span>Video</span></a>
       <button class="pill" data-a="info">${icon("info", 18)}<span>Info</span></button>
       <button class="pill" data-a="warmup">${wCount ? `<span class="count">${wCount}</span>` : icon("warm", 18)}<span>Warm Up</span></button>
+      <button class="pill${ex.swappedFrom ? " has" : ""}" data-a="swap">${icon("swap", 18)}<span>Swap</span></button>
       <button class="pill${ex.note ? " has" : ""}" data-a="note">${icon("note", 18)}<span>Note</span></button>
     </div>
     <div class="table">
@@ -439,7 +441,8 @@ function viewHistory(d) {
             ? `<div class="hbody">${h.exercises
                 .map((e) => {
                   const bw = !!libFor(d, e.name).bodyweight;
-                  return `<div class="hex"><div class="hexname">${esc(e.name)}</div>${e.sets
+                  const from = (e.sets.find((x) => x.swapped_from) || {}).swapped_from;
+                  return `<div class="hex"><div class="hexname">${esc(e.name)}${from ? ` <span class="hswap">instead of ${esc(from)}</span>` : ""}</div>${e.sets
                     .map((s) => `<div class="hset"><span class="hb${s.set_type === "W" ? " w" : ""}">${s.set_type === "W" ? "W" : esc(s.set_no)}</span>${esc(L.setText(s, bw))}</div>`)
                     .join("")}</div>`;
                 })
@@ -538,6 +541,41 @@ const SHEETS = {
       <div class="sh-row">${[60, 90, 120, 180]
         .map((v) => `<button class="btn btn-secondary" data-a="restStart" data-v="${v}">${L.fmtClock(v)}</button>`)
         .join("")}</div>`;
+  },
+  swap() {
+    const d = data();
+    const ex = cur();
+    const planned = ex.swappedFrom || ex.name;
+    if (ex.sets.some((s) => s.done)) {
+      return `<h2 class="sh-title">Swap exercise</h2>
+        <p class="sh-sub">You've ticked sets on ${esc(ex.name)}. Untick them first if you want to swap it.</p>
+        <button class="btn btn-secondary" data-a="closeSheet">OK</button>`;
+    }
+    const missing = new Set(S.sheet.missing || []);
+    const { picks, same } = L.swapCandidates(planned, d.exercises, missing);
+    const gear = L.swapEquipment(planned, d.exercises);
+    const item = (e) => {
+      const on = L.norm(e.exercise) === L.norm(ex.name);
+      const sub = [L.splitList(e.equipment).join(", "), L.splitList(e.primary_muscles).join(", ")].filter(Boolean).join(" · ");
+      return `<button class="swapitem${on ? " on" : ""}" data-a="swapTo" data-name="${esc(e.exercise)}">
+        <span class="sthumb">${thumb(e, e.exercise)}</span>
+        <span class="swaptext"><b>${esc(e.exercise)}</b><small>${esc(sub)}</small></span>${on ? icon("check", 20) : ""}</button>`;
+    };
+    const chips = gear.length
+      ? `<p class="sh-sub">Not available today?</p><div class="eqchips">${gear
+          .map((g) => `<button class="eqchip${missing.has(g) ? " on" : ""}" data-a="swapMissing" data-v="${esc(g)}" aria-pressed="${missing.has(g)}">${esc(g[0].toUpperCase() + g.slice(1))}</button>`)
+          .join("")}</div>`
+      : "";
+    const back = ex.swappedFrom
+      ? `<button class="swapitem back" data-a="swapTo" data-name="${esc(planned)}"><span class="sthumb">${thumb(libFor(d, planned), planned)}</span>
+          <span class="swaptext"><b>Back to ${esc(planned)}</b><small>The planned exercise</small></span></button>`
+      : "";
+    const none = !picks.length && !same.length
+      ? `<p class="sh-p muted">${missing.size ? "Nothing left without that equipment. Untick one to see more." : "No alternatives in the library yet. Your coach can add them in the Exercises tab."}</p>`
+      : "";
+    return `<h2 class="sh-title">Swap ${esc(planned)}</h2>${chips}${back}
+      ${picks.length ? `<h3 class="sh-h">Coach's picks</h3><div class="swaplist">${picks.map(item).join("")}</div>` : ""}
+      ${same.length ? `<h3 class="sh-h">${picks.length ? "Also works" : "Same movement"}</h3><div class="swaplist">${same.map(item).join("")}</div>` : ""}${none}`;
   },
   menu() {
     const a = S.active;
@@ -687,6 +725,7 @@ function setOps(exIdx) {
       kg: s.kg,
       reps: s.reps,
       rir: s.rir,
+      swapped_from: ex.swappedFrom || "",
     }));
 }
 
@@ -846,6 +885,46 @@ const A = {
   },
   note() {
     openSheet({ type: "note" });
+  },
+  swap() {
+    openSheet({ type: "swap", missing: [] });
+  },
+  swapMissing(el) {
+    const v = el.dataset.v;
+    const m = S.sheet.missing;
+    const i = m.indexOf(v);
+    if (i >= 0) m.splice(i, 1);
+    else m.push(v);
+    renderSheet();
+  },
+  // Swaps are for this workout only: the plan in the Sheet is untouched.
+  swapTo(el) {
+    const ex = cur();
+    const name = el.dataset.name;
+    if (ex.sets.some((s) => s.done)) return;
+    const planned = ex.swappedFrom || ex.name;
+    if (L.norm(name) !== L.norm(ex.name)) {
+      if (L.norm(name) === L.norm(planned)) {
+        ex.name = planned;
+        ex.target = { ...ex.target, kg: ex.plannedKg ?? null };
+        delete ex.swappedFrom;
+        delete ex.plannedKg;
+      } else {
+        if (!ex.swappedFrom) {
+          ex.swappedFrom = ex.name;
+          ex.plannedKg = ex.target.kg;
+        }
+        ex.name = name;
+        // The planned load was for the planned exercise; suggestions come from this one's history instead.
+        ex.target = { ...ex.target, kg: null };
+      }
+      ex.sets.forEach((s) => Object.assign(s, { kg: "", reps: "", rir: "" }));
+      ex.showLast = false;
+      saveActive();
+      toast(ex.swappedFrom ? `Swapped to ${ex.name}` : `Back to ${ex.name}`);
+    }
+    S.sheet = null;
+    render();
   },
   warmup() {
     const ex = cur();

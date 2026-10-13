@@ -3,21 +3,22 @@
  *
  * Tabs (created by Coach → Set up):
  *   Clients    who can log in, one private link (token) each
- *   Exercises  name, YouTube link, muscles, bodyweight?, cues
+ *   Exercises  the library: YouTube link, muscles, movement pattern, equipment,
+ *              your preferred swaps, and which injury flags it should be avoided for
  *   Program    the plan: one row per exercise per session
  *   Log        every set your clients tick (written by the app)
  *   Sessions   every finished workout (written by the app)
  *   Settings   app_url, notify_email
  *
- * Setup steps are in README.md (github.com/chawlasahaj/coach). After editing this file, redeploy
+ * Setup steps are in this repo's README.md. After editing this file, redeploy
  * with Deploy → Manage deployments → Edit → Version: New version, so the URL stays.
  */
 
 var TABS = {
-  Clients: ["client_id", "name", "token", "show_rir", "active", "notes"],
-  Exercises: ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues"],
+  Clients: ["client_id", "name", "token", "show_rir", "active", "notes", "flags"],
+  Exercises: ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps", "avoid_for"],
   Program: ["client_id", "session", "session_name", "order", "exercise", "sets", "reps", "target_kg", "target_rir", "rest_sec", "warmup_sets", "note"],
-  Log: ["logged_at", "client_id", "date", "instance_id", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir", "entry_id"],
+  Log: ["logged_at", "client_id", "date", "instance_id", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir", "entry_id", "swapped_from"],
   Sessions: ["instance_id", "client_id", "date", "session", "session_name", "started_at", "finished_at", "duration_min", "sets_done", "note"],
   Settings: ["key", "value"],
 };
@@ -26,7 +27,7 @@ var TABS = {
 var TEXT_COLUMNS = {
   Clients: ["client_id", "token"],
   Program: ["client_id", "session_name", "reps", "target_rir", "note"],
-  Log: ["logged_at", "client_id", "date", "instance_id", "session_name", "exercise", "set_type", "rir", "entry_id"],
+  Log: ["logged_at", "client_id", "date", "instance_id", "session_name", "exercise", "set_type", "rir", "entry_id", "swapped_from"],
   Sessions: ["instance_id", "client_id", "date", "session_name", "started_at", "finished_at", "note"],
 };
 
@@ -35,8 +36,10 @@ var TEXT_COLUMNS = {
 var KEY_COLUMNS = { Clients: "client_id", Exercises: "exercise", Program: "exercise", Log: "entry_id", Sessions: "instance_id", Settings: "key" };
 
 var PROGRAM_FIELDS = ["session", "session_name", "order", "exercise", "sets", "reps", "target_kg", "target_rir", "rest_sec", "warmup_sets", "note"];
-var EXERCISE_FIELDS = ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues"];
-var LOG_FIELDS = ["entry_id", "instance_id", "date", "logged_at", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir"];
+var EXERCISE_FIELDS = ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps"];
+var LOG_FIELDS = ["entry_id", "instance_id", "date", "logged_at", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir", "swapped_from"];
+// The movement patterns the Exercises tab offers in its dropdown. Swaps are found within a pattern.
+var PATTERNS = ["squat", "lunge", "hinge", "h-push", "v-push", "h-pull", "v-pull", "carry", "core", "arms", "shoulders", "calves"];
 var SESSION_FIELDS = ["instance_id", "session", "session_name", "date", "started_at", "finished_at", "duration_min", "sets_done", "note"];
 // If one of these does get mangled into a date, read it back as "M-D".
 var RANGE_FIELDS = { reps: true, target_rir: true };
@@ -87,6 +90,9 @@ function setup() {
   clients.getRange(2, ch.active + 1, clients.getMaxRows() - 1, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireCheckbox().build()
   );
+  ex.getRange(2, eh.pattern + 1, ex.getMaxRows() - 1, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(PATTERNS, true).setAllowInvalid(true).build()
+  );
   ex.getRange(2, eh.bodyweight + 1, ex.getMaxRows() - 1, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireCheckbox().build()
   );
@@ -101,10 +107,10 @@ function seed_(ss) {
   var ex = ss.getSheetByName("Exercises");
   if (lastDataRow_(ex) < 2) {
     appendObjects_(ex, [
-      { exercise: "Goblet Squat", primary_muscles: "Quads, Glutes, Adductors", secondary_muscles: "Abs", bodyweight: false, cues: "Elbows inside the knees, chest tall." },
-      { exercise: "DB Incline Press (neutral grip)", primary_muscles: "Chest, Front Delts", secondary_muscles: "Triceps", bodyweight: false, cues: "Palms facing each other." },
-      { exercise: "Single-Arm DB Row", primary_muscles: "Lats, Upper Back", secondary_muscles: "Biceps", bodyweight: false, cues: "Pull the elbow to your hip." },
-      { exercise: "Dead Bug", primary_muscles: "Abs", bodyweight: true, cues: "Lower back flat on the floor." },
+      { exercise: "Goblet Squat", primary_muscles: "Quads, Glutes, Adductors", secondary_muscles: "Abs", bodyweight: false, cues: "Elbows inside the knees, chest tall.", pattern: "squat", equipment: "dumbbells" },
+      { exercise: "DB Incline Press (neutral grip)", primary_muscles: "Chest, Front Delts", secondary_muscles: "Triceps", bodyweight: false, cues: "Palms facing each other.", pattern: "h-push", equipment: "dumbbells, bench" },
+      { exercise: "Single-Arm DB Row", primary_muscles: "Lats, Upper Back", secondary_muscles: "Biceps", bodyweight: false, cues: "Pull the elbow to your hip.", pattern: "h-pull", equipment: "dumbbells, bench" },
+      { exercise: "Dead Bug", primary_muscles: "Abs", bodyweight: true, cues: "Lower back flat on the floor.", pattern: "core", equipment: "bodyweight" },
     ]);
   }
   var clients = ss.getSheetByName("Clients");
@@ -214,12 +220,23 @@ function bootstrap_(client) {
   program.forEach(function (r) {
     used[norm_(r.exercise)] = true;
   });
+  // The whole library, for swaps, minus anything flagged for this client's injuries.
+  // Exercises the coach put in their program always come through. Flags stay here.
+  var flags = list_(client.flags);
+  var flagged = function (r) {
+    return list_(r.avoid_for).some(function (f) {
+      return flags.indexOf(f) !== -1;
+    });
+  };
   var exercises = rows_("Exercises")
     .filter(function (r) {
-      return used[norm_(r.exercise)];
+      return used[norm_(r.exercise)] || !flagged(r);
     })
     .map(function (r) {
-      return pick_(r, EXERCISE_FIELDS);
+      var e = pick_(r, EXERCISE_FIELDS);
+      // Programmed but flagged: still in their plan, never offered as a swap.
+      e.offer = !flagged(r);
+      return e;
     });
   var mine = function (r) {
     return norm_(r.client_id) === cid;
@@ -248,7 +265,7 @@ function applyOp_(ctx, op) {
       logged_at: str_(op.logged_at), client_id: cid, date: str_(op.date), instance_id: str_(op.instance_id),
       session: num_(op.session), session_name: str_(op.session_name), exercise: str_(op.exercise),
       set_type: op.set_type === "W" ? "W" : "N", set_no: num_(op.set_no), kg: num_(op.kg), reps: num_(op.reps),
-      rir: str_(op.rir), entry_id: op.entry_id,
+      rir: str_(op.rir), entry_id: op.entry_id, swapped_from: str_(op.swapped_from),
     });
   }
   if (op.type === "delete_set") {
@@ -283,7 +300,8 @@ function notify_(ctx, rec) {
       })
       .map(function (r) {
         var load = r.kg === "" ? "" : r.kg + " kg × ";
-        return r.exercise + " " + r.set_no + ": " + load + r.reps + (r.rir !== "" ? " @" + r.rir : "");
+        var swap = r.swapped_from ? " (instead of " + r.swapped_from + ")" : "";
+        return r.exercise + swap + " " + r.set_no + ": " + load + r.reps + (r.rir !== "" ? " @" + r.rir : "");
       });
     var who = ctx.client.name || ctx.client.client_id;
     MailApp.sendEmail(
@@ -459,6 +477,16 @@ function num_(v) {
   if (v === "" || v == null) return "";
   var n = Number(String(v).replace(",", "."));
   return isFinite(n) ? n : "";
+}
+
+// "wrist, Knee; back" → ["wrist", "knee", "back"]
+function list_(v) {
+  return String(v == null ? "" : v)
+    .split(/[,;]/)
+    .map(function (x) {
+      return x.trim().toLowerCase();
+    })
+    .filter(String);
 }
 
 function norm_(v) {

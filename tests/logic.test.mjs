@@ -147,3 +147,48 @@ test("estimateMinutes is sensible", () => {
   // Per exercise: 1 min setup + 3 sets × (45 s work + 90 s rest) = 465 s.
   assert.equal(L.estimateMinutes([t, t, t, t]), 31);
 });
+
+const LIB = Object.fromEntries(
+  [
+    { exercise: "Goblet Squat", pattern: "squat", equipment: "dumbbells", primary_muscles: "Quads, Glutes", swaps: "Leg Press, Box Squat, Nonexistent" },
+    { exercise: "Leg Press", pattern: "squat", equipment: "machine", primary_muscles: "Quads, Glutes" },
+    { exercise: "Box Squat", pattern: "squat", equipment: "bodyweight, bench", primary_muscles: "Quads" },
+    { exercise: "Barbell Squat", pattern: "squat", equipment: "barbell, rack", primary_muscles: "Quads, Glutes, Adductors" },
+    { exercise: "Wall Sit", pattern: "squat", equipment: "bodyweight", primary_muscles: "Abs" },
+    { exercise: "Hip Thrust", pattern: "hinge", equipment: "dumbbells, bench", primary_muscles: "Glutes" },
+  ].map((e) => [L.norm(e.exercise), e]),
+);
+
+test("swap candidates: coach's picks first, then the same pattern by shared muscles", () => {
+  const { picks, same } = L.swapCandidates("goblet squat", LIB);
+  assert.deepEqual(picks.map((e) => e.exercise), ["Leg Press", "Box Squat"]);
+  assert.deepEqual(same.map((e) => e.exercise), ["Barbell Squat", "Wall Sit"]);
+});
+
+test("swap candidates skip anything needing equipment that isn't there", () => {
+  const { picks, same } = L.swapCandidates("Goblet Squat", LIB, new Set(["machine", "bench"]));
+  assert.deepEqual(picks.map((e) => e.exercise), []);
+  assert.deepEqual(same.map((e) => e.exercise), ["Barbell Squat", "Wall Sit"]);
+  assert.deepEqual(L.swapCandidates("Unknown", LIB), { picks: [], same: [] });
+});
+
+test("swap equipment lists what the alternatives need, not bodyweight", () => {
+  assert.deepEqual(L.swapEquipment("Goblet Squat", LIB), ["barbell", "bench", "dumbbells", "machine", "rack"]);
+});
+
+test("swap lists keep names that have commas inside brackets", () => {
+  assert.deepEqual(L.splitNames("Glute Bridge, Single-Leg Hip Thrust (bench, bodyweight); Leg Press"), [
+    "Glute Bridge", "Single-Leg Hip Thrust (bench, bodyweight)", "Leg Press",
+  ]);
+  const lib = Object.fromEntries([
+    { exercise: "Hip Thrust", pattern: "hinge", swaps: "Single-Leg Hip Thrust (bench, bodyweight)" },
+    { exercise: "Single-Leg Hip Thrust (bench, bodyweight)", pattern: "hinge" },
+  ].map((e) => [L.norm(e.exercise), e]));
+  assert.deepEqual(L.swapCandidates("Hip Thrust", lib).picks.map((e) => e.exercise), ["Single-Leg Hip Thrust (bench, bodyweight)"]);
+});
+
+test("exercises marked offer: false are never suggested as swaps", () => {
+  const lib = { ...LIB, [L.norm("Barbell Squat")]: { ...LIB[L.norm("Barbell Squat")], offer: false } };
+  const { same } = L.swapCandidates("Goblet Squat", lib);
+  assert.deepEqual(same.map((e) => e.exercise), ["Wall Sit"]);
+});

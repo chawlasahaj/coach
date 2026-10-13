@@ -26,6 +26,7 @@
   - finish summary, history, offline sync, demo mode
 - [x] **Sheet set up and script deployed.**
 - [ ] **Go live:** turn on GitHub Pages and merge to `main`, test with the Test client, then load Mom's plan and the current clients' blocks.
+- [x] **Exercise library and swaps:** pattern, equipment, coach's swaps and injury flags in the Exercises tab; a Swap button in the workout that filters by missing equipment and never offers a flagged movement.
 - [ ] **2 · Polish from real use:**
   - supersets (C1/C2 pairs)
   - a progress chart per exercise

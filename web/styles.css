@@ -305,6 +305,38 @@ input.cell:focus { outline: 2px solid var(--primary); outline-offset: 0; backgro
   display: grid; place-items: center; background: var(--fill);
 }
 
+.swapnote {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 32px;
+  padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+  font-size: 15px; font-weight: 500;
+}
+
+/* ---------- swap sheet ---------- */
+
+.eqchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.eqchip {
+  min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1.5px solid var(--line); font-size: 15px;
+}
+.eqchip.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); text-decoration: line-through; }
+.swaplist { display: flex; flex-direction: column; }
+.swapitem {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 0;
+  border-bottom: 1px solid var(--line); text-align: left;
+}
+.swapitem.on { color: var(--accent); }
+.swapitem.back { border: 1.5px dashed var(--line); border-radius: 12px; padding: 8px 10px; }
+.sthumb {
+  position: relative; flex: none; display: grid; place-items: center;
+  width: 44px; height: 58px; border-radius: 6px; overflow: hidden; background: var(--fill);
+}
+.sthumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.sthumb .ini { font-size: 14px; }
+.swaptext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.swaptext b { font-weight: 500; font-size: 17px; }
+.swaptext small { color: var(--ink-2); font-size: 14px; }
+.hswap { color: var(--ink-3); font-weight: 400; font-size: 14px; }
+
 /* ---------- finish / done ---------- */
 
 .stats {

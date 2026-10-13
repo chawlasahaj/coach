@@ -1,5 +1,5 @@
 # Tests the app on every pull request, and publishes web/ to GitHub Pages
-# (https://chawlasahaj.github.io/coach/) on every push to main.
+# (https://<username>.github.io/coach/) on every push to main.
 name: Publish
 
 on:

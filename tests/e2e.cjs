@@ -122,6 +122,32 @@ async function run(name, device) {
   check((await page.textContent(".title")).includes("Week 2 · Day B"), "a different session can be picked");
   await page.click("[data-a=start]");
   await page.waitForSelector(".srow");
+  // Swap: coach's picks first, equipment filter, logged with what it replaced, then back.
+  await page.click("[data-a=swap]");
+  await page.waitForSelector(".swaplist");
+  await page.waitForTimeout(400);
+  await shot("10-swap");
+  check((await page.locator(".swapitem").first().textContent()).includes("Glute Bridge"), "swap lists the coach's picks first");
+  await page.click('.eqchip[data-v="cable"]');
+  check((await page.locator('.swapitem[data-name="Cable Pull-Through"]').count()) === 0, "'no cable' hides cable exercises");
+  await page.click('.swapitem[data-name="Glute Bridge"]');
+  check((await page.textContent(".extitle")).trim() === "Glute Bridge", "swap replaces the exercise for today");
+  check((await page.textContent(".swapnote")).includes("Instead of DB Hip Thrust"), "it shows what it replaced");
+  check((await page.locator('input[data-f="kg"]').count()) === 0, "a bodyweight swap hides the kg boxes");
+  await shot("11-swapped");
+  await page.click('.chk[data-si="1"]');
+  await page.click('.rirbtn[data-v="2"]');
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("wt.demo.db")).log.some((r) => r.exercise === "Glute Bridge" && r.swapped_from === "DB Hip Thrust"), null, { timeout: 5000 });
+  check(true, "the logged set records the swap");
+  await page.click("[data-a=swap]");
+  check((await page.textContent(".panel")).includes("Untick them first"), "no swapping once a set is ticked");
+  await page.click(".panel [data-a=closeSheet]");
+  await page.click('.chk[data-si="1"]');
+  await page.click("[data-a=swap]");
+  await page.click(".swapitem.back");
+  check((await page.textContent(".extitle")).trim() === "DB Hip Thrust", "swap back to the planned exercise");
+  check((await page.locator(".swapnote").count()) === 0 && (await page.locator('input[data-f="kg"]').count()) > 0, "back to normal after swapping back");
+
   await page.click("[data-a=note]");
   await page.fill('textarea[data-f="exnote"]', "Left hip a bit tight");
   await page.click(".panel [data-a=closeSheet]");
@@ -134,6 +160,10 @@ async function run(name, device) {
   await page.click("[data-a=deleteSet]");
   check(await page.locator(".srow").count() === before - 1, "a set can be deleted");
   await page.click("[data-a=rest]");
+  if (await page.locator("[data-a=restSkip]").count()) {
+    await page.click("[data-a=restSkip]"); // still resting from an earlier tick
+    await page.click("[data-a=rest]");
+  }
   await page.click('[data-a=restStart][data-v="60"]');
   await page.click('[data-a=restAdj][data-v="15"]');
   check(["1:15", "1:14"].includes((await page.textContent(".bigclock")).trim()), "rest +15s works");
