@@ -79,6 +79,14 @@ test("suggest prefers the coach's load, then last time, then the bottom of the r
   assert.deepEqual(L.suggest(t, last, 0, true), { kg: "", reps: "9" });
 });
 
+test("suggested reps stay inside the coach's range when a new phase moves it", () => {
+  const last = { sets: [{ kg: 20, reps: 12 }] };
+  assert.deepEqual(L.suggest(L.toTarget({ reps: "8-10" }), last, 0, false), { kg: "20", reps: "10" });
+  assert.deepEqual(L.suggest(L.toTarget({ reps: "12-15" }), last, 0, false), { kg: "20", reps: "12" });
+  assert.deepEqual(L.suggest(L.toTarget({ reps: "6-8" }), { sets: [{ kg: 20, reps: 4 }] }, 0, false), { kg: "20", reps: "6" });
+  assert.deepEqual(L.suggest(L.toTarget({ reps: "max" }), last, 0, false), { kg: "20", reps: "12" });
+});
+
 test("warm-up suggestion is half the working load, rounded to 2.5", () => {
   assert.deepEqual(L.suggestWarmup({ kg: "50" }, false), { kg: "25", reps: "8" });
   assert.deepEqual(L.suggestWarmup({ kg: "12" }, false), { kg: "5", reps: "8" });
@@ -112,6 +120,8 @@ test("text helpers", () => {
   assert.equal(L.planLine(t), "3 × 8–10 · 47.5 kg · RIR 2");
   assert.equal(L.setText({ kg: 50, reps: 8, rir: "2" }, false), "50 kg × 8 @2");
   assert.equal(L.setText({ kg: "", reps: 15, rir: "" }, false), "15 reps");
+  assert.equal(L.setText({ kg: 20, reps: "", rir: "" }, false), "20 kg");
+  assert.equal(L.setText({ kg: "", reps: "", rir: "" }, true), "done");
   assert.equal(L.fmtElapsed(28_000), "0:00:28");
   assert.equal(L.fmtElapsed(3_725_000), "1:02:05");
   assert.equal(L.fmtClock(180), "3:00");

@@ -128,6 +128,8 @@ export function suggest(target, last, idx, bodyweight) {
   let reps = null;
   if (prev && (bodyweight || target.kg == null || target.kg === prevKg)) reps = numOrNull(prev.reps);
   if (reps == null) reps = target.reps.lo;
+  // A new phase can move the range (10-12 → 8-10): never suggest reps outside it.
+  else if (target.reps.lo != null) reps = Math.min(target.reps.hi, Math.max(target.reps.lo, reps));
   return { kg: kg == null ? "" : fmtNum(kg), reps: reps == null ? "" : String(reps) };
 }
 
@@ -234,7 +236,10 @@ export function planLine(t) {
 
 export function setText(s, bodyweight) {
   const kg = numOrNull(s.kg);
-  const base = bodyweight || kg == null ? `${s.reps} reps` : `${fmtNum(kg)} kg × ${s.reps}`;
+  const reps = numOrNull(s.reps);
+  const load = bodyweight || kg == null ? "" : `${fmtNum(kg)} kg`;
+  // Sets logged without reps (older records) still show their load, or just that they were done.
+  const base = reps == null ? load || "done" : load ? `${load} × ${reps}` : `${reps} reps`;
   return s.rir !== "" && s.rir != null ? `${base} @${s.rir}` : base;
 }
 
