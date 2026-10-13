@@ -186,3 +186,9 @@ test("swap lists keep names that have commas inside brackets", () => {
   ].map((e) => [L.norm(e.exercise), e]));
   assert.deepEqual(L.swapCandidates("Hip Thrust", lib).picks.map((e) => e.exercise), ["Single-Leg Hip Thrust (bench, bodyweight)"]);
 });
+
+test("exercises marked offer: false are never suggested as swaps", () => {
+  const lib = { ...LIB, [L.norm("Barbell Squat")]: { ...LIB[L.norm("Barbell Squat")], offer: false } };
+  const { same } = L.swapCandidates("Goblet Squat", lib);
+  assert.deepEqual(same.map((e) => e.exercise), ["Wall Sit"]);
+});

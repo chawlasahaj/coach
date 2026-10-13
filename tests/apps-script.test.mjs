@@ -162,6 +162,9 @@ test("the app gets the whole library except what's flagged for this client", () 
   assert.ok(names.includes("Leg Press"));
   assert.ok(!names.includes("Bulgarian Split Squat") && !names.includes("Barbell Back Squat"));
   assert.ok(names.includes("Goblet Squat"));
+  // ...but it isn't offered as a swap, and nothing says which flag ruled it out.
+  assert.equal(boot.exercises.find((e) => e.exercise === "Goblet Squat").offer, false);
+  assert.equal(boot.exercises.find((e) => e.exercise === "Leg Press").offer, true);
   assert.equal(boot.exercises.find((e) => e.exercise === "Leg Press").pattern, "squat");
   assert.equal("avoid_for" in boot.exercises[0], false); // flags never leave the Sheet
   assert.equal("flags" in boot.client, false);

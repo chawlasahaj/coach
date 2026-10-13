@@ -223,15 +223,20 @@ function bootstrap_(client) {
   // The whole library, for swaps, minus anything flagged for this client's injuries.
   // Exercises the coach put in their program always come through. Flags stay here.
   var flags = list_(client.flags);
+  var flagged = function (r) {
+    return list_(r.avoid_for).some(function (f) {
+      return flags.indexOf(f) !== -1;
+    });
+  };
   var exercises = rows_("Exercises")
     .filter(function (r) {
-      if (used[norm_(r.exercise)]) return true;
-      return !list_(r.avoid_for).some(function (f) {
-        return flags.indexOf(f) !== -1;
-      });
+      return used[norm_(r.exercise)] || !flagged(r);
     })
     .map(function (r) {
-      return pick_(r, EXERCISE_FIELDS);
+      var e = pick_(r, EXERCISE_FIELDS);
+      // Programmed but flagged: still in their plan, never offered as a swap.
+      e.offer = !flagged(r);
+      return e;
     });
   var mine = function (r) {
     return norm_(r.client_id) === cid;

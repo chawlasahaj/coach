@@ -238,7 +238,8 @@ export function swapCandidates(name, library, missing = new Set()) {
   const key = norm(name);
   const cur = library[key] || {};
   const needs = (e) => splitList(e.equipment).map(norm);
-  const usable = (e) => norm(e.exercise) !== key && !needs(e).some((q) => missing.has(q));
+  // offer: false marks something in this person's plan that their injury flags rule out as a swap.
+  const usable = (e) => norm(e.exercise) !== key && e.offer !== false && !needs(e).some((q) => missing.has(q));
   const picks = [];
   for (const n of splitNames(cur.swaps)) {
     const e = library[norm(n)];
