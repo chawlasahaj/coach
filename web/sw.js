@@ -2,7 +2,7 @@
 // the app opens instantly at the gym and picks up a new deploy on the next launch.
 // Calls to the Google Sheet are never cached here (the app keeps its own copy).
 
-const CACHE = "wt-shell-v2";
+const CACHE = "wt-shell-v3";
 const RUNTIME = "wt-runtime-v1";
 const SHELL = [
   "./",
@@ -28,7 +28,8 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== RUNTIME).map((k) => caches.delete(k))))
+      // Every github.io project site shares one origin and so one cache store: only clear this app's.
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("wt-") && k !== CACHE && k !== RUNTIME).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });

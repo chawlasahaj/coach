@@ -9,7 +9,7 @@
  *   Sessions   every finished workout (written by the app)
  *   Settings   app_url, notify_email
  *
- * Setup steps are in workout-tracker/README.md. After editing this file, redeploy
+ * Setup steps are in README.md (github.com/chawlasahaj/coach). After editing this file, redeploy
  * with Deploy → Manage deployments → Edit → Version: New version, so the URL stays.
  */
 

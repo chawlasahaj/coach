@@ -4,10 +4,9 @@ A phone and iPad web app for your clients: it shows the next session from your p
 
 You write plans in a Google Sheet. Everything clients log lands back in that Sheet. Running it costs nothing.
 
-**Try it first:** open <https://chawlasahaj.github.io/claudeprojects/?u=demo> once it's published (step 3). Locally, run `npm run serve` and open <http://localhost:4173/?u=demo>. The demo saves only on that device.
+**Try it first:** open <https://chawlasahaj.github.io/coach/?u=demo> once it's published (step 3). Locally, run `npm run serve` and open <http://localhost:4173/?u=demo>. The demo saves only on that device.
 
 ```
-workout-tracker/
   web/                 the app: static files, no build step
   apps-script/Code.gs  the Google Sheet side
   tests/               npm test, npm run e2e, npm run e2e:sheet
@@ -40,16 +39,14 @@ This repo is public, so no client names, plans or health notes go in it. Those l
 
 ### 3. Host the app (GitHub Pages, free)
 
-The repo already has a workflow (`.github/workflows/workout-tracker.yml`) that tests the app and publishes `workout-tracker/web` on every push to `main`.
+The repo already has a workflow (`.github/workflows/pages.yml`) that tests the app and publishes `web/` on every push to `main`.
 
-1. In the repo on GitHub, open **Settings → Pages**. Under **Build and deployment → Source**, choose **GitHub Actions**. That's the only setting.
-2. Merge the code into `main`. The **Actions** tab shows the publish. It takes about a minute.
-3. The app is at **https://chawlasahaj.github.io/claudeprojects/**, and `…/claudeprojects/?u=demo` is the demo.
-4. In the Sheet's **Settings** tab, put `https://chawlasahaj.github.io/claudeprojects/` in `app_url`.
+1. In this repo on GitHub, open **Settings → Pages**. Under **Build and deployment → Source**, choose **GitHub Actions**. That's the only setting.
+2. Publish: **Actions → Publish → Run workflow**. After that, every push to `main` publishes by itself in about a minute.
+3. The app is at **https://chawlasahaj.github.io/coach/**, and `…/coach/?u=demo` is the demo.
+4. In the Sheet's **Settings** tab, put `https://chawlasahaj.github.io/coach/` in `app_url`.
 
-If the first publish ran before Pages was switched on, it will have failed. Open **Actions → Workout tracker → Run workflow** to run it again.
-
-GitHub says Pages isn't meant to run a business; a free tool for a few people is a grey area rather than a clear breach. To move later, Cloudflare Pages is free and allows commercial use: connect this repo with no build command and output directory `workout-tracker/web`, then update `app_url` and resend the links. Nothing in the Sheet changes.
+GitHub says Pages isn't meant to run a business; a free tool for a few people is a grey area rather than a clear breach. To move later, Cloudflare Pages is free and allows commercial use: connect this repo with no build command and output directory `web`, then update `app_url` and resend the links. Nothing in the Sheet changes.
 
 ### 4. Add a client and send their link
 
