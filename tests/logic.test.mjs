@@ -175,3 +175,14 @@ test("swap candidates skip anything needing equipment that isn't there", () => {
 test("swap equipment lists what the alternatives need, not bodyweight", () => {
   assert.deepEqual(L.swapEquipment("Goblet Squat", LIB), ["barbell", "bench", "dumbbells", "machine", "rack"]);
 });
+
+test("swap lists keep names that have commas inside brackets", () => {
+  assert.deepEqual(L.splitNames("Glute Bridge, Single-Leg Hip Thrust (bench, bodyweight); Leg Press"), [
+    "Glute Bridge", "Single-Leg Hip Thrust (bench, bodyweight)", "Leg Press",
+  ]);
+  const lib = Object.fromEntries([
+    { exercise: "Hip Thrust", pattern: "hinge", swaps: "Single-Leg Hip Thrust (bench, bodyweight)" },
+    { exercise: "Single-Leg Hip Thrust (bench, bodyweight)", pattern: "hinge" },
+  ].map((e) => [L.norm(e.exercise), e]));
+  assert.deepEqual(L.swapCandidates("Hip Thrust", lib).picks.map((e) => e.exercise), ["Single-Leg Hip Thrust (bench, bodyweight)"]);
+});

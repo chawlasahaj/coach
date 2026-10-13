@@ -196,6 +196,24 @@ export function splitList(s) {
   return String(s ?? "").split(/[,;/]/).map((x) => x.trim()).filter(Boolean);
 }
 
+// Exercise names in a list, split on commas or semicolons outside brackets, so
+// "Glute Bridge, Single-Leg Hip Thrust (bench, bodyweight)" is two names.
+export function splitNames(s) {
+  const out = [];
+  let cur = "";
+  let depth = 0;
+  for (const ch of String(s ?? "")) {
+    if (ch === "(" || ch === "[") depth += 1;
+    else if ((ch === ")" || ch === "]") && depth) depth -= 1;
+    if ((ch === "," || ch === ";") && depth === 0) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = "";
+    } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
 export function muscleSummary(items) {
   const by = new Map();
   for (const { lib, target } of items) {
@@ -222,7 +240,7 @@ export function swapCandidates(name, library, missing = new Set()) {
   const needs = (e) => splitList(e.equipment).map(norm);
   const usable = (e) => norm(e.exercise) !== key && !needs(e).some((q) => missing.has(q));
   const picks = [];
-  for (const n of splitList(cur.swaps)) {
+  for (const n of splitNames(cur.swaps)) {
     const e = library[norm(n)];
     if (e && usable(e) && !picks.includes(e)) picks.push(e);
   }
@@ -241,7 +259,7 @@ export function swapCandidates(name, library, missing = new Set()) {
 export function swapEquipment(name, library) {
   const cur = library[norm(name)] || {};
   const pattern = norm(cur.pattern);
-  const names = new Set(splitList(cur.swaps).map(norm));
+  const names = new Set(splitNames(cur.swaps).map(norm));
   const seen = new Set();
   for (const e of Object.values(library)) {
     if (norm(e.exercise) === norm(name) || (pattern && norm(e.pattern) === pattern) || names.has(norm(e.exercise))) {
