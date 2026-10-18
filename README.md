@@ -108,6 +108,7 @@ When a machine or bench is taken, the client taps **Swap** in the workout:
 - **Choices:** your `swaps` for that exercise come first, then everything else in the library with the same `pattern`, closest muscles first.
 - **Not available today:** chips like *Bench* or *Cable* hide anything that needs that equipment.
 - **Injury flags:** anything flagged in `avoid_for` for that client is never offered.
+- **Anything else:** the search box at the top covers the whole library, and a name that isn't in the library can be typed and used as is (it's logged under that name; add it to the Exercises tab later for a video and cues).
 - **Today only:** a swap lasts for that workout; the plan in the Sheet doesn't change. Each logged set records what it replaced in the Log tab's `swapped_from` column.
 
 To do something that isn't in the plan, the **+** at the end of the exercise strip adds any exercise from the library to that workout.

@@ -170,6 +170,18 @@ async function run(name, device) {
   await page.click(".swapitem.back");
   check((await page.textContent(".extitle")).trim() === "DB Hip Thrust", "swap back to the planned exercise");
   check((await page.locator(".swapnote").count()) === 0 && (await page.locator('input[data-f="kg"]').count()) > 0, "back to normal after swapping back");
+  // Swap to anything: search the whole library, or type a name that isn't in it.
+  await page.click("[data-a=swap]");
+  await page.fill(".search", "push");
+  check((await page.locator('.swapbody .swapitem[data-name="Push-Up"]').count()) === 1, "swap search covers the whole library");
+  await page.fill(".search", "Leg  Extension ");
+  check((await page.textContent(".swapitem.custom")).includes("Use “Leg Extension”"), "a name not in the library can be used");
+  await page.click(".swapitem.custom");
+  check((await page.textContent(".extitle")).trim() === "Leg Extension", "the swap takes the typed name");
+  check((await page.textContent(".swapnote")).includes("Instead of DB Hip Thrust"), "and still shows what it replaced");
+  await page.click("[data-a=swap]");
+  await page.click(".swapitem.back");
+  check((await page.textContent(".extitle")).trim() === "DB Hip Thrust", "and swaps back");
 
   await page.click("[data-a=note]");
   await page.fill('textarea[data-f="exnote"]', "Left hip a bit tight");
@@ -208,8 +220,8 @@ async function run(name, device) {
   const tiles = await page.locator(".tile[data-a=go]").count();
   await page.click("[data-a=addEx]");
   await page.fill(".search", "leg");
-  check((await page.locator(".addlist .swapitem").count()) === 1, "searching the library narrows the list");
-  await page.click(".addlist .swapitem");
+  check((await page.locator(".addlist .swapitem:not(.custom)").count()) === 1, "searching the library narrows the list");
+  await page.click(".addlist .swapitem:not(.custom)");
   check((await page.textContent(".extitle")).trim() === "Leg Press", "the added exercise opens");
   check((await page.locator(".tile[data-a=go]").count()) === tiles + 1, "and joins the exercise strip");
   await shot("12-added");

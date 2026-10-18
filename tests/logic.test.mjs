@@ -353,3 +353,10 @@ test("agoText", () => {
   assert.equal(L.agoText(5 * 60e3), "5 min ago");
   assert.equal(L.agoText(130 * 60e3), "2 h 10 min ago");
 });
+
+test("customName tidies a typed exercise name", () => {
+  assert.equal(L.customName("  Leg   Extension "), "Leg Extension");
+  assert.equal(L.customName("   "), "");
+  assert.equal(L.customName(null), "");
+  assert.equal(L.customName("x".repeat(80)).length, 60);
+});
