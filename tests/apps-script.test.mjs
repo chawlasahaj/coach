@@ -167,7 +167,14 @@ test("the app gets the whole library except what's flagged for this client", () 
   assert.equal(boot.exercises.find((e) => e.exercise === "Leg Press").offer, true);
   assert.equal(boot.exercises.find((e) => e.exercise === "Leg Press").pattern, "squat");
   assert.equal("avoid_for" in boot.exercises[0], false); // flags never leave the Sheet
+  assert.ok("per_hand" in boot.exercises[0], "per_hand reaches the app");
   assert.equal("flags" in boot.client, false);
+  // A column the coach adds to the library reaches the app without a redeploy; avoid_for still doesn't.
+  ex.getRange(1, 12).setValue("difficulty");
+  ex.getRange(2, 12).setValue("easy");
+  const later = get(ctx, { action: "bootstrap", token });
+  assert.equal(later.exercises.find((e) => e.exercise === "Goblet Squat").difficulty, "easy");
+  assert.equal("avoid_for" in later.exercises[0], false);
 });
 
 test("a swapped set records what it replaced", () => {

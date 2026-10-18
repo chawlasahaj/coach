@@ -99,7 +99,8 @@ To build a block quickly, copy one week's rows, paste them below, then change th
 - `pattern`: the movement (squat, lunge, hinge, glutes, h-push, v-push, h-pull, v-pull, carry, core, arms, shoulders, calves). `glutes` is for glute isolation work like abduction and kickbacks. Pick it from the dropdown.
 - `equipment`: what it needs, comma-separated: dumbbells, barbell, rack, bench, cable, machine, band, kettlebell, pull-up bar, bodyweight.
 - `swaps`: your preferred alternatives, comma-separated, best first. Use names exactly as they appear in this tab.
-- `avoid_for`: injury flags this exercise is wrong for, e.g. `wrist` or `back, knee`. Matched against each client's `flags`.
+- `avoid_for`: injury flags this exercise is wrong for, e.g. `wrist` or `back, knee`. Matched against each client's `flags`. This column never leaves the Sheet; every other column in this tab is sent to the app.
+- `per_hand`: tick it for exercises with a dumbbell in each hand (presses, lunges, curls, farmer's carry). The weight box then reads **kg/hand**, so nobody logs the two dumbbells added together. Leave it off for one-dumbbell exercises like the goblet squat or single-arm row.
 
 ### Swapping exercises
 

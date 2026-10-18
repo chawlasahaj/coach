@@ -16,7 +16,7 @@
 
 var TABS = {
   Clients: ["client_id", "name", "token", "show_rir", "active", "notes", "flags"],
-  Exercises: ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps", "avoid_for"],
+  Exercises: ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps", "avoid_for", "per_hand"],
   Program: ["client_id", "session", "session_name", "order", "exercise", "sets", "reps", "target_kg", "target_rir", "rest_sec", "warmup_sets", "note"],
   Log: ["logged_at", "client_id", "date", "instance_id", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir", "entry_id", "swapped_from"],
   Sessions: ["instance_id", "client_id", "date", "session", "session_name", "started_at", "finished_at", "duration_min", "sets_done", "note"],
@@ -36,7 +36,10 @@ var TEXT_COLUMNS = {
 var KEY_COLUMNS = { Clients: "client_id", Exercises: "exercise", Program: "exercise", Log: "entry_id", Sessions: "instance_id", Settings: "key" };
 
 var PROGRAM_FIELDS = ["session", "session_name", "order", "exercise", "sets", "reps", "target_kg", "target_rir", "rest_sec", "warmup_sets", "note"];
-var EXERCISE_FIELDS = ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps"];
+// Exercises columns the app always gets (as "" when missing). Any other column the coach adds
+// goes through too, so new library columns don't need a redeploy. avoid_for never leaves.
+var EXERCISE_FIELDS = ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps", "per_hand"];
+var PRIVATE_EXERCISE_FIELDS = ["avoid_for"];
 var LOG_FIELDS = ["entry_id", "instance_id", "date", "logged_at", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir", "swapped_from"];
 // The movement patterns the Exercises tab offers in its dropdown. Swaps are found within a pattern.
 var PATTERNS = ["squat", "lunge", "hinge", "glutes", "h-push", "v-push", "h-pull", "v-pull", "carry", "core", "arms", "shoulders", "calves"];
@@ -96,6 +99,10 @@ function setup() {
   ex.getRange(2, eh.bodyweight + 1, ex.getMaxRows() - 1, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireCheckbox().build()
   );
+  // Ticked for exercises with a dumbbell in each hand: the app asks for kg per hand.
+  ex.getRange(2, eh.per_hand + 1, ex.getMaxRows() - 1, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireCheckbox().build()
+  );
 
   seed_(ss);
   var blank = ss.getSheetByName("Sheet1");
@@ -108,7 +115,7 @@ function seed_(ss) {
   if (lastDataRow_(ex) < 2) {
     appendObjects_(ex, [
       { exercise: "Goblet Squat", primary_muscles: "Quads, Glutes, Adductors", secondary_muscles: "Abs", bodyweight: false, cues: "Elbows inside the knees, chest tall.", pattern: "squat", equipment: "dumbbells" },
-      { exercise: "DB Incline Press (neutral grip)", primary_muscles: "Chest, Front Delts", secondary_muscles: "Triceps", bodyweight: false, cues: "Palms facing each other.", pattern: "h-push", equipment: "dumbbells, bench" },
+      { exercise: "DB Incline Press (neutral grip)", primary_muscles: "Chest, Front Delts", secondary_muscles: "Triceps", bodyweight: false, cues: "Palms facing each other.", pattern: "h-push", equipment: "dumbbells, bench", per_hand: true },
       { exercise: "Single-Arm DB Row", primary_muscles: "Lats, Upper Back", secondary_muscles: "Biceps", bodyweight: false, cues: "Pull the elbow to your hip.", pattern: "h-pull", equipment: "dumbbells, bench" },
       { exercise: "Dead Bug", primary_muscles: "Abs", bodyweight: true, cues: "Lower back flat on the floor.", pattern: "core", equipment: "bodyweight" },
     ]);
@@ -234,6 +241,9 @@ function bootstrap_(client) {
     })
     .map(function (r) {
       var e = pick_(r, EXERCISE_FIELDS);
+      Object.keys(r).forEach(function (k) {
+        if (k && !(k in e) && PRIVATE_EXERCISE_FIELDS.indexOf(k) === -1) e[k] = out_(r[k], k);
+      });
       // Programmed but flagged: still in their plan, never offered as a swap.
       e.offer = !flagged(r);
       return e;

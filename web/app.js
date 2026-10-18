@@ -215,7 +215,7 @@ function viewHome(d) {
         <a class="thumb" href="${esc(L.videoHref(lib.video_url, name))}" target="_blank" rel="noopener" aria-label="Watch ${esc(name)}">${thumb(lib, name, `<span class="play">${icon("play", 14)}</span>`)}</a>
         <div class="exinfo">
           <div class="exname">${esc(name)}</div>
-          <div class="exsub">${esc(L.planLine(target))}</div>
+          <div class="exsub">${esc(L.planLine(target, lib.per_hand))}</div>
           ${target.note ? `<div class="exnote">${esc(target.note)}</div>` : ""}
           ${chips(lib)}
         </div>
@@ -380,7 +380,7 @@ function viewWorkout(d) {
       return `<div class="srow ${grid}${s.done ? " done" : ""}">
         <button class="badge${s.type === "W" ? " w" : ""}" data-a="setmenu" data-si="${i}" aria-label="Set ${n} options">${n}</button>
         <div class="tgt${muted ? " muted" : ""}">${col.split(" × ").map((p, j) => `<span>${j ? "× " : ""}${esc(p)}</span>`).join(" ")}</div>
-        ${bw ? "" : `<input class="cell" data-f="kg" data-si="${i}" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="${esc(sg.kg)}" value="${esc(s.kg)}" aria-label="Set ${n} kilograms">`}
+        ${bw ? "" : `<input class="cell" data-f="kg" data-si="${i}" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="${esc(sg.kg)}" value="${esc(s.kg)}" aria-label="Set ${n} kilograms${lib.per_hand ? " per hand" : ""}">`}
         <input class="cell" data-f="reps" data-si="${i}" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="${esc(sg.reps)}" value="${esc(s.reps)}" aria-label="Set ${n} reps">
         ${rirCell}
         <button class="chk${s.done ? " on" : ""}" data-a="tick" data-si="${i}" aria-pressed="${s.done}" aria-label="Set ${n} done">${s.done ? icon("check", 20) : ""}</button>
@@ -420,7 +420,7 @@ function viewWorkout(d) {
       <div class="shead ${grid}">
         <span>Set</span>
         <button class="tgl" data-a="toggleLast" aria-label="Switch between target and last time">${ex.showLast ? "Last" : "Target"} ${icon("swap", 18)}</button>
-        ${bw ? "" : "<span>kg</span>"}
+        ${bw ? "" : `<span>${lib.per_hand ? "kg/hand" : "kg"}</span>`}
         <span>Reps</span>
         ${showRir ? "<span>RIR</span>" : ""}
         <button class="chk${allDone ? " on" : ""}" data-a="tickAll" aria-label="Tick every set">${allDone ? icon("check", 20) : ""}</button>
@@ -594,7 +594,7 @@ const SHEETS = {
     const bw = !!lib.bodyweight;
     const perfs = L.performances(d.log, ex.name, S.active.instance_id).slice(0, 4);
     return `<h2 class="sh-title">${esc(ex.name)}</h2>
-      <p class="sh-sub">${esc(L.planLine(ex.target))} · rest ${L.fmtClock(ex.target.rest)}</p>
+      <p class="sh-sub">${esc(L.planLine(ex.target, lib.per_hand))} · rest ${L.fmtClock(ex.target.rest)}</p>
       ${ex.target.note ? `<div class="callout"><b>From your coach</b><br>${esc(ex.target.note)}</div>` : ""}
       ${lib.cues ? `<h3 class="sh-h">How to</h3><p class="sh-p">${esc(lib.cues)}</p>` : ""}
       ${chips(lib)}

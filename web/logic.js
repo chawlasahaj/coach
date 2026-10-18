@@ -463,11 +463,11 @@ export function targetText(t, bodyweight) {
   return r ? `${fmtNum(t.kg)} kg × ${r}` : `${fmtNum(t.kg)} kg`;
 }
 
-export function planLine(t) {
+export function planLine(t, perHand = false) {
   const parts = [];
   const r = repsLabel(t.reps);
   parts.push(r ? `${t.sets} × ${r}` : `${t.sets} sets`);
-  if (t.kg != null) parts.push(`${fmtNum(t.kg)} kg`);
+  if (t.kg != null) parts.push(`${fmtNum(t.kg)} kg${perHand ? " per hand" : ""}`);
   if (t.rir) parts.push(`RIR ${String(t.rir).split(",").map((x) => x.trim()).filter(Boolean).join(", ")}`);
   return parts.join(" · ");
 }
