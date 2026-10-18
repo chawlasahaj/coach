@@ -626,7 +626,6 @@ const SHEETS = {
         .join("")}</div>`;
   },
   swap() {
-    const d = data();
     const ex = cur();
     const planned = ex.swappedFrom || ex.name;
     if (ex.sets.some((s) => s.done)) {
@@ -634,31 +633,9 @@ const SHEETS = {
         <p class="sh-sub">You've ticked sets on ${esc(ex.name)}. Untick them first if you want to swap it.</p>
         <button class="btn btn-secondary" data-a="closeSheet">OK</button>`;
     }
-    const missing = new Set(S.sheet.missing || []);
-    const { picks, same } = L.swapCandidates(planned, d.exercises, missing);
-    const gear = L.swapEquipment(planned, d.exercises);
-    const item = (e) => {
-      const on = L.norm(e.exercise) === L.norm(ex.name);
-      const sub = [L.splitList(e.equipment).join(", "), L.splitList(e.primary_muscles).join(", ")].filter(Boolean).join(" · ");
-      return `<button class="swapitem${on ? " on" : ""}" data-a="swapTo" data-name="${esc(e.exercise)}">
-        <span class="sthumb">${thumb(e, e.exercise)}</span>
-        <span class="swaptext"><b>${esc(e.exercise)}</b><small>${esc(sub)}</small></span>${on ? icon("check", 20) : ""}</button>`;
-    };
-    const chips = gear.length
-      ? `<p class="sh-sub">Not available today?</p><div class="eqchips">${gear
-          .map((g) => `<button class="eqchip${missing.has(g) ? " on" : ""}" data-a="swapMissing" data-v="${esc(g)}" aria-pressed="${missing.has(g)}">${esc(g[0].toUpperCase() + g.slice(1))}</button>`)
-          .join("")}</div>`
-      : "";
-    const back = ex.swappedFrom
-      ? `<button class="swapitem back" data-a="swapTo" data-name="${esc(planned)}"><span class="sthumb">${thumb(libFor(d, planned), planned)}</span>
-          <span class="swaptext"><b>Back to ${esc(planned)}</b><small>The planned exercise</small></span></button>`
-      : "";
-    const none = !picks.length && !same.length
-      ? `<p class="sh-p muted">${missing.size ? "Nothing left without that equipment. Untick one to see more." : "No alternatives in the library yet. Your coach can add them in the Exercises tab."}</p>`
-      : "";
-    return `<h2 class="sh-title">Swap ${esc(planned)}</h2>${chips}${back}
-      ${picks.length ? `<h3 class="sh-h">Coach's picks</h3><div class="swaplist">${picks.map(item).join("")}</div>` : ""}
-      ${same.length ? `<h3 class="sh-h">${picks.length ? "Also works" : "Same movement"}</h3><div class="swaplist">${same.map(item).join("")}</div>` : ""}${none}`;
+    return `<h2 class="sh-title">Swap ${esc(planned)}</h2>
+      <input class="search" data-f="swapq" type="search" placeholder="Search every exercise" value="${esc(S.sheet.q || "")}" autocomplete="off" aria-label="Search every exercise">
+      <div class="swapbody">${swapBody()}</div>`;
   },
   add() {
     return `<h2 class="sh-title">Add an exercise</h2>
@@ -684,18 +661,63 @@ const SHEETS = {
   },
 };
 
-function addList() {
+function libItem(e, action, on = false) {
+  const sub = [L.splitList(e.equipment).join(", "), L.splitList(e.primary_muscles).join(", ")].filter(Boolean).join(" · ");
+  return `<button class="swapitem${on ? " on" : ""}" data-a="${action}" data-name="${esc(e.exercise)}">
+    <span class="sthumb">${thumb(e, e.exercise)}</span>
+    <span class="swaptext"><b>${esc(e.exercise)}</b><small>${esc(sub)}</small></span>${on ? icon("check", 20) : ""}</button>`;
+}
+
+// Anything typed that isn't a library name can still be used, logged under that name.
+function customItem(q, action, found) {
+  const name = L.customName(q);
+  if (!name || found.some((e) => L.norm(e.exercise) === L.norm(name))) return "";
+  return `<button class="swapitem custom" data-a="${action}" data-name="${esc(name)}">
+    <span class="sthumb">${icon("plus", 22)}</span>
+    <span class="swaptext"><b>Use “${esc(name)}”</b><small>Not in the library: logged under this name</small></span></button>`;
+}
+
+// Search results for a sheet's search box: library matches, then the typed name itself.
+function searchItems(action, isOn = () => false) {
   const d = data();
-  const found = L.searchLibrary(d.exercises, S.sheet.q || "");
-  if (!found.length) return `<p class="sh-p muted">Nothing matches. Your coach can add exercises in the Exercises tab.</p>`;
-  return found
-    .map((e) => {
-      const sub = [L.splitList(e.equipment).join(", "), L.splitList(e.primary_muscles).join(", ")].filter(Boolean).join(" · ");
-      return `<button class="swapitem" data-a="addTo" data-name="${esc(e.exercise)}">
-        <span class="sthumb">${thumb(e, e.exercise)}</span>
-        <span class="swaptext"><b>${esc(e.exercise)}</b><small>${esc(sub)}</small></span></button>`;
-    })
-    .join("");
+  const q = S.sheet.q || "";
+  const found = L.searchLibrary(d.exercises, q);
+  const custom = customItem(q, action, found);
+  if (!found.length && !custom) return `<p class="sh-p muted">Type a name to search. Your coach can add exercises in the Exercises tab.</p>`;
+  return found.map((e) => libItem(e, action, isOn(e))).join("") + custom;
+}
+
+// The swap sheet under its search box: search results while typing, otherwise the coach's
+// picks and same-movement exercises with the equipment filter.
+function swapBody() {
+  const d = data();
+  const ex = cur();
+  const planned = ex.swappedFrom || ex.name;
+  const isOn = (e) => L.norm(e.exercise) === L.norm(ex.name);
+  if (L.customName(S.sheet.q)) return `<div class="swaplist">${searchItems("swapTo", isOn)}</div>`;
+  const missing = new Set(S.sheet.missing || []);
+  const { picks, same } = L.swapCandidates(planned, d.exercises, missing);
+  const gear = L.swapEquipment(planned, d.exercises);
+  const item = (e) => libItem(e, "swapTo", isOn(e));
+  const chips = gear.length
+    ? `<p class="sh-sub">Not available today?</p><div class="eqchips">${gear
+        .map((g) => `<button class="eqchip${missing.has(g) ? " on" : ""}" data-a="swapMissing" data-v="${esc(g)}" aria-pressed="${missing.has(g)}">${esc(g[0].toUpperCase() + g.slice(1))}</button>`)
+        .join("")}</div>`
+    : "";
+  const back = ex.swappedFrom
+    ? `<button class="swapitem back" data-a="swapTo" data-name="${esc(planned)}"><span class="sthumb">${thumb(libFor(d, planned), planned)}</span>
+        <span class="swaptext"><b>Back to ${esc(planned)}</b><small>The planned exercise</small></span></button>`
+    : "";
+  const none = !picks.length && !same.length
+    ? `<p class="sh-p muted">${missing.size ? "Nothing left without that equipment. Untick one, or search above." : "No suggestions for this one. Search above for any exercise."}</p>`
+    : "";
+  return `${chips}${back}
+    ${picks.length ? `<h3 class="sh-h">Coach's picks</h3><div class="swaplist">${picks.map(item).join("")}</div>` : ""}
+    ${same.length ? `<h3 class="sh-h">${picks.length ? "Also works" : "Same movement"}</h3><div class="swaplist">${same.map(item).join("")}</div>` : ""}${none}`;
+}
+
+function addList() {
+  return searchItems("addTo");
 }
 
 function renderSheet() {
@@ -1284,10 +1306,11 @@ document.addEventListener("input", (e) => {
     S.finishNote = el.value;
     return;
   }
-  if (f === "addq") {
+  // Typing in a sheet's search box redraws only its results, so the keyboard stays up.
+  if (f === "addq" || f === "swapq") {
     S.sheet.q = el.value;
-    const list = $sheet.querySelector(".addlist");
-    if (list) list.innerHTML = addList();
+    const list = $sheet.querySelector(f === "addq" ? ".addlist" : ".swapbody");
+    if (list) list.innerHTML = f === "addq" ? addList() : swapBody();
     return;
   }
   if (!S.active) return;

@@ -429,6 +429,11 @@ export function searchLibrary(library, q) {
     .sort((a, b) => a.exercise.localeCompare(b.exercise));
 }
 
+// A name typed for an exercise that isn't in the library, tidied; "" when there's nothing to use.
+export function customName(q) {
+  return String(q ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+}
+
 // Equipment worth offering as "not available today" for this exercise's swaps.
 export function swapEquipment(name, library) {
   const cur = library[norm(name)] || {};
