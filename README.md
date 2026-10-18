@@ -83,7 +83,7 @@ Use one row per exercise per session.
 | `reps` | `8-10`, `12`, or text like `30s`. |
 | `target_kg` | Optional. When blank, the app suggests last time's weight. |
 | `target_rir` | Optional, e.g. `2` or `1-2`. For a top set and back-offs, give one per set: `1, 2, 3, 3`. After each set the app tells the client if they stopped short of it. |
-| `rest_sec` | Rest timer after each set. Defaults to 90. |
+| `rest_sec` | Rest timer after each set. Defaults to 90. `0` makes a superset with the next exercise: both show a "Superset with …" link, and the timer uses the second one's rest (so it still runs if they do straight sets). |
 | `warmup_sets` | Warm-up rows added at the top. Defaults to 0. They ramp up towards the first working set (e.g. 40% × 10, 60% × 5, 80% × 3), never under the 20 kg bar on barbell lifts. |
 | `note` | Shown to the client under the exercise name, e.g. "Pain-free depth only". |
 
@@ -110,10 +110,13 @@ When a machine or bench is taken, the client taps **Swap** in the workout:
 - **Injury flags:** anything flagged in `avoid_for` for that client is never offered.
 - **Today only:** a swap lasts for that workout; the plan in the Sheet doesn't change. Each logged set records what it replaced in the Log tab's `swapped_from` column.
 
+To do something that isn't in the plan, the **+** at the end of the exercise strip adds any exercise from the library to that workout.
+
 The body diagram knows these muscles: Chest, Front Delts, Side Delts, Rear Delts, Shoulders, Biceps, Triceps, Forearms, Abs, Core, Obliques, Quads, Adductors, Hamstrings, Glutes, Calves, Lats, Upper Back, Traps and Lower Back. Any other name gets a plain figure.
 
 ## Seeing what they did
 
+- **Live:** open the client's link on your own phone while they train. Home shows "Workout in progress"; tap it to watch each set as they tick it (it refreshes every 15 seconds). It's read-only, so don't press Start Workout there.
 - **Log tab:** every set they tick (kg, reps, RIR), written as they go.
 - **Sessions tab:** one row per finished workout, with its duration and their notes.
 - **Email when someone finishes:** put your address in Settings → `notify_email`.

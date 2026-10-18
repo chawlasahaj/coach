@@ -96,6 +96,85 @@ export function nextSession(groups, sessions) {
   return groups.find((g) => !done.has(g.session)) || null;
 }
 
+/* ---------- supersets ---------- */
+
+// rest_sec 0 means "go straight to the next exercise": the two (or more) form a superset and
+// the rest comes after the last one. Exercises added during the workout never join one.
+export function supersetOf(exercises, i) {
+  const joins = (j) => j >= 0 && j < exercises.length - 1 && exercises[j].target.rest === 0 && !exercises[j].added && !exercises[j + 1].added;
+  if (!exercises[i] || exercises[i].added) return null;
+  let from = i;
+  while (joins(from - 1)) from -= 1;
+  let to = i;
+  while (joins(to)) to += 1;
+  return to > from ? { from, to } : null;
+}
+
+// The rest timer after a set. A superset's first exercise uses the group's rest, so the timer
+// still runs when the pair is done as straight sets.
+export function restFor(exercises, i) {
+  const g = supersetOf(exercises, i);
+  const own = exercises[i] ? exercises[i].target.rest : 0;
+  if (own > 0) return own;
+  const last = g ? exercises[g.to].target.rest : 0;
+  return last > 0 ? last : DEFAULT_REST_SEC;
+}
+
+/* ---------- live view ---------- */
+
+// Workouts with sets logged but not finished, newest first: what a coach opening the same link
+// on another phone can watch. Only ones with a set in the last `maxAgeMs`.
+export function liveWorkouts(db, now = Date.now(), maxAgeMs = 4 * 3600 * 1000, exclude = null) {
+  const finished = new Set((db.sessions || []).filter((x) => x.finished_at).map((x) => x.instance_id));
+  const by = new Map();
+  for (const r of db.log || []) {
+    if (!r.instance_id || finished.has(r.instance_id) || r.instance_id === exclude) continue;
+    const at = String(r.logged_at || "");
+    let g = by.get(r.instance_id);
+    if (!g) {
+      g = { instance_id: r.instance_id, session: numOrNull(r.session), session_name: r.session_name || "", first: at, last: at, sets: 0 };
+      by.set(r.instance_id, g);
+    }
+    if (at > g.last) g.last = at;
+    if (at && (!g.first || at < g.first)) g.first = at;
+    if (r.set_type !== "W") g.sets += 1;
+  }
+  return [...by.values()].filter((g) => now - Date.parse(g.last) <= maxAgeMs).sort((a, b) => b.last.localeCompare(a.last));
+}
+
+// One workout's logged sets laid over its planned exercises (group may be null), in the order
+// the client sees them. entry_id is instance.slot.set and slot is the exercise's place in the
+// workout, so swapped and added exercises land where they are on the client's phone.
+export function liveWorkout(group, rows) {
+  const items = (group ? group.items : []).map((r) => ({ name: r.exercise, target: toTarget(r), swappedFrom: "", added: false, sets: [] }));
+  let latest = null;
+  for (const r of rows) {
+    const slot = Number(String(r.entry_id || "").split(".")[1]);
+    let it = Number.isInteger(slot) && slot >= 0 ? items[slot] : items.find((x) => norm(x.name) === norm(r.exercise));
+    if (!it) {
+      it = { name: r.exercise, target: null, swappedFrom: "", added: true, sets: [] };
+      if (Number.isInteger(slot) && slot >= 0) items[slot] = it;
+      else items.push(it);
+    }
+    it.name = r.exercise;
+    it.swappedFrom = r.swapped_from || "";
+    it.sets.push(r);
+    if (!latest || String(r.logged_at || "") >= String(latest.r.logged_at || "")) latest = { r, it };
+  }
+  const exercises = items.filter(Boolean);
+  for (const e of exercises) {
+    e.sets.sort((a, b) => (a.set_type === b.set_type ? Number(a.set_no) - Number(b.set_no) : a.set_type === "W" ? -1 : 1));
+  }
+  return { exercises, current: latest ? exercises.indexOf(latest.it) : -1 };
+}
+
+export function agoText(ms) {
+  const min = Math.floor(Math.max(0, ms) / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  return `${Math.floor(min / 60)} h ${min % 60} min ago`;
+}
+
 /* ---------- history ---------- */
 
 // Every past performance of one exercise, newest first, warm-ups left out.
@@ -336,6 +415,18 @@ export function swapCandidates(name, library, missing = new Set()) {
         .sort((a, b) => overlap(b) - overlap(a) || a.exercise.localeCompare(b.exercise))
     : [];
   return { picks, same };
+}
+
+// The library for "add an exercise": every word typed must match the name, muscles or equipment.
+export function searchLibrary(library, q) {
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  return Object.values(library)
+    .filter((e) => e.offer !== false && e.exercise)
+    .filter((e) => {
+      const hay = norm([e.exercise, e.primary_muscles, e.secondary_muscles, e.equipment, e.pattern].join(" "));
+      return words.every((w) => hay.includes(w));
+    })
+    .sort((a, b) => a.exercise.localeCompare(b.exercise));
 }
 
 // Equipment worth offering as "not available today" for this exercise's swaps.

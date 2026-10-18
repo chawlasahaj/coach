@@ -35,7 +35,7 @@ const DAY_A = [
 ];
 const DAY_B = [
   ["DB Hip Thrust", 3, "10-12", 10, "2", 90, 1, ""],
-  ["Lat Pulldown (neutral grip)", 3, "10-12", 25, "2", 90, 0, ""],
+  ["Lat Pulldown (neutral grip)", 3, "10-12", 25, "2", 0, 0, "Superset with the shoulder press: go straight to it, then rest."],
   ["Seated DB Shoulder Press", 3, "10-12", 4, "2", 90, 0, "Start light."],
   ["Glute Bridge", 2, "15", "", "", 45, 0, ""],
 ];

@@ -89,6 +89,21 @@ async function run(name, device) {
   await shot("5-info");
   await page.click(".backdrop", { position: { x: 10, y: 10 } });
 
+  // Superset: the pulldown (rest 0) leads into the shoulder press, and the timer still runs after it.
+  await page.click('.tile[data-i="1"]');
+  check((await page.textContent(".swapnote")).includes("Superset with Seated DB Shoulder Press"), "a superset names its partner");
+  await page.click("[data-a=rest]");
+  if (await page.locator("[data-a=restSkip]").count()) await page.click("[data-a=restSkip]");
+  else await page.click(".backdrop", { position: { x: 10, y: 10 } });
+  check((await page.textContent("[data-rest]")).trim() === "0:00", "no rest running before the superset set");
+  await page.click('.chk[data-si="0"]');
+  await page.waitForSelector(".rirgrid");
+  await page.click('.rirbtn[data-v="2"]');
+  check((await page.textContent("[data-rest]")).trim() !== "0:00", "the timer runs after a superset's first exercise");
+  await page.click(".swapnote");
+  check((await page.textContent(".extitle")).trim() === "Seated DB Shoulder Press", "the superset link jumps to the partner");
+  check((await page.textContent(".swapnote")).includes("Superset with Lat Pulldown"), "and the partner links back");
+
   // Go to the bodyweight exercise (no kg column).
   await page.click('.tile[data-i="3"]');
   check((await page.textContent(".extitle")).trim() === "Glute Bridge", "jump via the exercise strip");
@@ -119,7 +134,7 @@ async function run(name, device) {
   await page.waitForFunction(() => JSON.parse(localStorage.getItem("wt.queue.demo") || "[]").length === 0, null, { timeout: 5000 });
   const db = await page.evaluate(() => JSON.parse(localStorage.getItem("wt.demo.db")));
   const mine = db.log.filter((r) => r.session === 2);
-  check(mine.length === 4, `4 sets reached the store (got ${mine.length})`);
+  check(mine.length === 5, `5 sets reached the store (got ${mine.length})`);
   check(mine.some((r) => r.kg === "12" && r.reps === "11" && r.rir === "2" && r.set_no === 1), "typed set stored with RIR");
   check(db.sessions.some((s) => s.session === 2 && s.note === "Felt strong today"), "session note stored");
 
@@ -188,6 +203,39 @@ async function run(name, device) {
   check(Number(await page.textContent(".stats div:nth-child(2) b")) > 1, "the summary counts the logged sets");
   await page.click("[data-a=backToWorkout]");
   await page.waitForSelector(".srow");
+
+  // Add an exercise that isn't in the plan.
+  const tiles = await page.locator(".tile[data-a=go]").count();
+  await page.click("[data-a=addEx]");
+  await page.fill(".search", "leg");
+  check((await page.locator(".addlist .swapitem").count()) === 1, "searching the library narrows the list");
+  await page.click(".addlist .swapitem");
+  check((await page.textContent(".extitle")).trim() === "Leg Press", "the added exercise opens");
+  check((await page.locator(".tile[data-a=go]").count()) === tiles + 1, "and joins the exercise strip");
+  await shot("12-added");
+
+  // Another phone (the coach's) opening the same link sees the workout, read-only.
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem("wt.queue.demo") || "[]").length === 0, null, { timeout: 5000 });
+  const sharedDb = await page.evaluate(() => localStorage.getItem("wt.demo.db"));
+  const other = await browser.newContext({ ...device, serviceWorkers: "block" });
+  await other.addInitScript((db) => {
+    if (!localStorage.getItem("wt.demo.db")) localStorage.setItem("wt.demo.db", db);
+  }, sharedDb);
+  const coach = await other.newPage();
+  coach.on("pageerror", (e) => errors.push(String(e)));
+  await coach.route("**/config.js", (route) =>
+    route.fulfill({ contentType: "text/javascript", body: 'export const API_URL = ""; export const APP_NAME = "Coach Sahaj";' }),
+  );
+  await coach.goto(`http://localhost:${PORT}/?u=demo`);
+  await coach.waitForSelector(".livecard");
+  check((await coach.textContent(".livecard")).includes("Workout in progress"), "another phone sees the workout in progress");
+  await coach.click(".livecard");
+  await coach.waitForSelector(".sumlist.live");
+  check((await coach.locator(".sumlist.live li").count()) === 4, "the live view lists the session's exercises");
+  check((await coach.locator(".sumlist.live li.done").count()) >= 1, "with what's been done");
+  await coach.waitForTimeout(300);
+  await coach.screenshot({ path: path.join(SHOTS, `${name}-13-watch.png`) });
+  await other.close();
   await page.click("[data-a=menu]");
   await page.click("[data-a=discard]");
   await page.click("[data-a=discardYes]");

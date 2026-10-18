@@ -15,7 +15,7 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const S = {
   token: null,
   boot: null, // what the Sheet last told us (cached for offline)
-  view: "loading", // landing | loading | error | home | workout | finish | done | history
+  view: "loading", // landing | loading | error | home | workout | finish | done | history | watch
   error: null,
   pick: null, // session chosen on the home screen, if not the next one
   active: null, // the workout in progress, saved on every change
@@ -24,6 +24,7 @@ const S = {
   done: null, // summary shown after finishing
   open: new Set(), // expanded history cards
   fetchedAt: 0,
+  watch: null, // instance_id of a workout in progress elsewhere, shown read-only
 };
 
 const activeKey = () => `wt.active.${S.token}`;
@@ -85,6 +86,12 @@ async function init() {
   if (S.view === "workout") wake();
   await refresh();
   api.flush(S.token);
+  // Keep the watch view current, and let home notice a workout starting on another phone.
+  setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    if (S.view === "watch") refresh();
+    else if (S.view === "home" && !S.active && Date.now() - S.fetchedAt > 60000) refresh();
+  }, 15000);
 }
 
 async function refresh() {
@@ -103,7 +110,7 @@ async function refresh() {
   }
   if (S.view === "loading" || S.view === "error") S.view = S.active ? "workout" : "home";
   // Never re-render under someone typing a set.
-  if (S.view === "home" || S.view === "history") render();
+  if (S.view === "home" || S.view === "history" || S.view === "watch") render();
 }
 
 function onSyncChange() {
@@ -182,6 +189,15 @@ function viewHome(d) {
     ? `<div class="callout">You've done every session in this plan. Your coach will add the next block. You can repeat any session meanwhile.</div>`
     : "";
 
+  // A workout being logged on another phone (the client's, when the coach opens their link).
+  const live = S.active ? null : L.liveWorkouts(d)[0];
+  const liveCard = live
+    ? `<button class="livecard" data-a="watch" data-id="${esc(live.instance_id)}">
+        <span class="livedot" aria-hidden="true"></span>
+        <span class="livetext"><b>Workout in progress</b><small>${esc(live.session_name)} · ${plural(live.sets, "set")} · last ${esc(L.agoText(Date.now() - Date.parse(live.last)))}</small></span>
+        <span class="livego">Watch ${icon("next", 18)}</span></button>`
+    : "";
+
   const muscleCards = muscles.length
     ? `<h2 class="h2">Target Muscles</h2>
        <div class="mcards" data-keep="mcards">${muscles
@@ -209,6 +225,7 @@ function viewHome(d) {
 
   return `${top}
   <main class="page with-cta">
+    ${liveCard}
     <p class="eyebrow">${hi}Session ${groups.indexOf(g) + 1} of ${groups.length} · ${tag}</p>
     <h1 class="title">${esc(g.name)}</h1>
     ${S.active ? "" : `<button class="linkbtn" data-a="pick">Choose a different session</button>`}
@@ -226,6 +243,49 @@ function viewHome(d) {
       ? `<button class="btn btn-primary" data-a="resume">Resume Workout</button>`
       : `<button class="btn btn-primary" data-a="start" data-n="${g.session}">Start Workout</button>`}
   </footer>`;
+}
+
+function viewWatch(d) {
+  const rows = d.log.filter((r) => r.instance_id === S.watch);
+  const finished = d.sessions.find((x) => x.instance_id === S.watch && x.finished_at);
+  const top = `<header class="bar">
+    <button class="ib" data-a="home" aria-label="Back">${icon("back")}</button>
+    <span class="bar-title">${finished ? "Finished" : "Live"}</span><span class="ib"></span>
+  </header>`;
+  if (!rows.length) {
+    return `${top}<main class="page"><h1 class="title">Nothing logged</h1><p class="sub">This workout was discarded or hasn't synced yet.</p></main>`;
+  }
+  const first = rows[0];
+  const g = d.groups.find((x) => x.session === L.numOrNull(first.session));
+  const w = L.liveWorkout(g, rows);
+  const times = rows.map((r) => Date.parse(r.logged_at)).filter((t) => !Number.isNaN(t));
+  const last = Math.max(...times);
+  const sets = rows.filter((r) => r.set_type !== "W").length;
+  const status = finished
+    ? `Finished · ${plural(L.numOrNull(finished.duration_min) || 0, "minute")} · ${plural(sets, "set")}`
+    : `${plural(sets, "set")} logged · last set ${L.agoText(Date.now() - last)}`;
+  const list = w.exercises
+    .map((e, i) => {
+      const bw = !!libFor(d, e.name).bodyweight;
+      const working = e.sets.filter((x) => x.set_type !== "W").length;
+      const state = !finished && i === w.current ? "now" : e.target && working >= e.target.sets ? "done" : "";
+      const label = { now: "Now", done: "Done" }[state] || (working ? `${working} of ${e.target ? e.target.sets : working}` : "");
+      const sub = e.swappedFrom ? `Instead of ${e.swappedFrom}` : e.added ? "Added today" : e.target ? L.planLine(e.target) : "";
+      const setsText = e.sets.length
+        ? e.sets.map((x) => `${x.set_type === "W" ? "W " : ""}${L.setText(x, bw)}`).join(" · ")
+        : "Not started";
+      return `<li class="${state}"><span class="lhead"><span class="sname">${esc(e.name)}</span>${label ? `<span class="lstate">${esc(label)}</span>` : ""}</span>
+        ${sub ? `<span class="lsub">${esc(sub)}</span>` : ""}<span class="ssets">${esc(setsText)}</span></li>`;
+    })
+    .join("");
+  return `${top}
+  <main class="page">
+    <p class="eyebrow">${finished ? "Done" : `<span class="livedot" aria-hidden="true"></span> Updates every 15 seconds`}</p>
+    <h1 class="title">${esc(first.session_name)}</h1>
+    <p class="sub">${esc(status)}</p>
+    <ul class="sumlist live">${list}</ul>
+    <p class="sub small">Ticked sets show up here. Numbers typed but not ticked stay on their phone.</p>
+  </main>`;
 }
 
 function restInfo() {
@@ -287,7 +347,14 @@ function viewWorkout(d) {
         <span class="tthumb">${thumb(libFor(d, e.name), e.name, complete ? `<span class="tdone">${icon("check", 18)}</span>` : "")}</span>
         <span class="tbar"></span></button>`;
     })
-    .join("");
+    .join("") +
+    `<button class="tile" data-a="addEx" aria-label="Add an exercise"><span class="tthumb addthumb">${icon("plus", 26)}</span><span class="tbar hidden"></span></button>`;
+
+  const sup = L.supersetOf(a.exercises, a.idx);
+  const partner = sup && (a.idx < sup.to ? a.idx + 1 : sup.from);
+  const superset = sup
+    ? `<button class="swapnote" data-a="go" data-i="${partner}">${icon("swap", 16)}<span>Superset with ${esc(a.exercises[partner].name)}</span></button>`
+    : "";
 
   const rows = ex.sets
     .map((s, i) => {
@@ -340,6 +407,7 @@ function viewWorkout(d) {
     <p class="setlabel">${label}</p>
     ${nudge ? `<p class="nudge ${nudge.tone}" role="status">${esc(nudge.text)}</p>` : ""}
     ${ex.swappedFrom ? `<button class="swapnote" data-a="swap">${icon("swap", 16)}<span>Instead of ${esc(ex.swappedFrom)}</span></button>` : ""}
+    ${superset}
     ${ex.target.note ? `<div class="callout small">${esc(ex.target.note)}</div>` : ""}
     <div class="pills" data-keep="pills">
       <a class="pill" href="${esc(L.videoHref(lib.video_url, ex.name))}" target="_blank" rel="noopener">${icon("play", 18)}<span>Video</span></a>
@@ -592,6 +660,11 @@ const SHEETS = {
       ${picks.length ? `<h3 class="sh-h">Coach's picks</h3><div class="swaplist">${picks.map(item).join("")}</div>` : ""}
       ${same.length ? `<h3 class="sh-h">${picks.length ? "Also works" : "Same movement"}</h3><div class="swaplist">${same.map(item).join("")}</div>` : ""}${none}`;
   },
+  add() {
+    return `<h2 class="sh-title">Add an exercise</h2>
+      <input class="search" data-f="addq" type="search" placeholder="Search name, muscle or equipment" value="${esc(S.sheet.q || "")}" autocomplete="off" aria-label="Search exercises">
+      <div class="swaplist addlist">${addList()}</div>`;
+  },
   menu() {
     const a = S.active;
     return `<h2 class="sh-title">${esc(a.session_name)}</h2>
@@ -610,6 +683,20 @@ const SHEETS = {
         : `<button class="btn btn-ghost danger" data-a="discard">Discard workout</button>`}`;
   },
 };
+
+function addList() {
+  const d = data();
+  const found = L.searchLibrary(d.exercises, S.sheet.q || "");
+  if (!found.length) return `<p class="sh-p muted">Nothing matches. Your coach can add exercises in the Exercises tab.</p>`;
+  return found
+    .map((e) => {
+      const sub = [L.splitList(e.equipment).join(", "), L.splitList(e.primary_muscles).join(", ")].filter(Boolean).join(" · ");
+      return `<button class="swapitem" data-a="addTo" data-name="${esc(e.exercise)}">
+        <span class="sthumb">${thumb(e, e.exercise)}</span>
+        <span class="swaptext"><b>${esc(e.exercise)}</b><small>${esc(sub)}</small></span></button>`;
+    })
+    .join("");
+}
 
 function renderSheet() {
   if (!S.sheet) {
@@ -652,6 +739,7 @@ function render() {
     finish: () => viewFinish(d),
     done: viewDone,
     history: () => viewHistory(d),
+    watch: () => viewWatch(d),
   }[S.view]();
   $app.innerHTML = html;
   $app.querySelectorAll("[data-keep]").forEach((el) => {
@@ -820,6 +908,30 @@ const A = {
     render();
     scrollTop();
   },
+  watch(el) {
+    S.watch = el.dataset.id;
+    S.view = "watch";
+    render();
+    scrollTop();
+    refresh();
+  },
+  addEx() {
+    openSheet({ type: "add", q: "" });
+  },
+  addTo(el) {
+    const a = S.active;
+    // Not in the plan: no target, so suggestions come from this exercise's own history.
+    const target = L.toTarget({ sets: 3 });
+    const sets = [newSet("N"), newSet("N"), newSet("N")];
+    a.exercises.push({ name: el.dataset.name, target, sets, note: "", showLast: false, added: true });
+    a.idx = a.exercises.length - 1;
+    saveActive();
+    S.sheet = null;
+    render();
+    scrollTop();
+    centerTile();
+    toast(`Added ${el.dataset.name}`);
+  },
   home() {
     S.view = "home";
     S.done = null;
@@ -986,7 +1098,7 @@ const A = {
     s.done = true;
     s.at = new Date().toISOString();
     queueExercise(S.active.idx);
-    startRest(ex.target.rest);
+    startRest(L.restFor(S.active.exercises, S.active.idx));
     saveActive();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     render();
@@ -1011,7 +1123,7 @@ const A = {
       s.at = new Date().toISOString();
     }
     queueExercise(S.active.idx);
-    startRest(ex.target.rest);
+    startRest(L.restFor(S.active.exercises, S.active.idx));
     saveActive();
     render();
   },
@@ -1170,6 +1282,12 @@ document.addEventListener("input", (e) => {
   if (!f) return;
   if (f === "finishNote") {
     S.finishNote = el.value;
+    return;
+  }
+  if (f === "addq") {
+    S.sheet.q = el.value;
+    const list = $sheet.querySelector(".addlist");
+    if (list) list.innerHTML = addList();
     return;
   }
   if (!S.active) return;
