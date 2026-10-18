@@ -467,3 +467,36 @@ input.cell:focus { outline: 2px solid var(--primary); outline-offset: 0; backgro
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- add an exercise, live view ---------- */
+
+.addthumb { display: grid; place-items: center; color: var(--ink-2); opacity: 1; }
+.tbar.hidden { visibility: hidden; }
+.search {
+  width: 100%; height: 48px; margin: 4px 0 8px; padding: 0 14px; border: 0; border-radius: 12px;
+  background: var(--fill); font-size: 17px;
+}
+.addlist { max-height: 55vh; overflow-y: auto; }
+
+.livecard {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin: 12px 0 6px; padding: 12px 14px;
+  border-radius: 14px; background: var(--accent-soft); color: var(--accent); text-align: left;
+}
+.livetext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.livetext b { font-weight: 600; }
+.livetext small { font-size: 14px; color: var(--ink-2); }
+.livego { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.livedot {
+  display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--good); animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .livedot { animation: none; } }
+
+.sumlist.live li.now { border-left: 3px solid var(--accent); padding-left: 10px; }
+.lhead { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.lstate { flex: none; font-size: 14px; color: var(--ink-2); }
+li.now .lstate { color: var(--accent); font-weight: 600; }
+li.done .lstate { color: var(--good); }
+.lsub { font-size: 14px; color: var(--ink-3); }
+.sub.small { margin-top: 18px; font-size: 14px; }

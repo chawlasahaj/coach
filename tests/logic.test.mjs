@@ -274,3 +274,82 @@ test("exercises marked offer: false are never suggested as swaps", () => {
   const { same } = L.swapCandidates("Goblet Squat", lib);
   assert.deepEqual(same.map((e) => e.exercise), ["Wall Sit"]);
 });
+
+const ex = (rest, extra = {}) => ({ target: L.toTarget({ rest_sec: rest }), ...extra });
+
+test("supersetOf groups exercises chained by rest 0", () => {
+  const w = [ex(90), ex(0), ex(90), ex(0), ex(0), ex(60), ex(0)];
+  assert.equal(L.supersetOf(w, 0), null);
+  assert.deepEqual(L.supersetOf(w, 1), { from: 1, to: 2 });
+  assert.deepEqual(L.supersetOf(w, 2), { from: 1, to: 2 });
+  assert.deepEqual(L.supersetOf(w, 4), { from: 3, to: 5 });
+  assert.equal(L.supersetOf(w, 6), null); // rest 0 on the last exercise leads nowhere
+  // An exercise added during the workout never joins one.
+  assert.equal(L.supersetOf([ex(0), ex(90, { added: true })], 0), null);
+});
+
+test("restFor gives a superset's first exercise the group's rest", () => {
+  const w = [ex(90), ex(0), ex(75), ex(0)];
+  assert.equal(L.restFor(w, 0), 90);
+  assert.equal(L.restFor(w, 1), 75); // done as straight sets, the timer still runs
+  assert.equal(L.restFor(w, 2), 75);
+  assert.equal(L.restFor(w, 3), L.DEFAULT_REST_SEC);
+});
+
+test("liveWorkouts finds recent unfinished workouts, newest first", () => {
+  const now = Date.parse("2026-10-18T01:30:00Z");
+  const row = (inst, at, type = "N") => ({ instance_id: inst, logged_at: at, session: "3", session_name: "Phase 1", set_type: type });
+  const db = {
+    log: [
+      row("a", "2026-10-18T01:00:00Z", "W"), row("a", "2026-10-18T01:20:00Z"), row("a", "2026-10-18T01:10:00Z"),
+      row("b", "2026-10-18T01:25:00Z"),
+      row("old", "2026-10-17T18:00:00Z"),
+      row("done", "2026-10-18T01:29:00Z"),
+    ],
+    sessions: [{ instance_id: "done", finished_at: "2026-10-18T01:29:30Z" }],
+  };
+  const live = L.liveWorkouts(db, now);
+  assert.deepEqual(live.map((g) => g.instance_id), ["b", "a"]);
+  assert.deepEqual(live[1], { instance_id: "a", session: 3, session_name: "Phase 1", first: "2026-10-18T01:00:00Z", last: "2026-10-18T01:20:00Z", sets: 2 });
+  assert.deepEqual(L.liveWorkouts(db, now, undefined, "b").map((g) => g.instance_id), ["a"]);
+});
+
+test("liveWorkout lays logged sets over the plan, swaps and additions included", () => {
+  const group = L.groupProgram([
+    { session: 3, session_name: "S3", order: 1, exercise: "Goblet Squat", sets: 3, reps: "10-12" },
+    { session: 3, session_name: "S3", order: 2, exercise: "DB Incline Press", sets: 3, reps: "10-12" },
+    { session: 3, session_name: "S3", order: 3, exercise: "Row", sets: 3, reps: "10-12" },
+  ])[0];
+  const r = (slot, ex, type, no, at, swapped = "") => ({ entry_id: `i.${slot}.${no}`, exercise: ex, set_type: type, set_no: no, logged_at: at, swapped_from: swapped });
+  const w = L.liveWorkout(group, [
+    r(0, "Goblet Squat", "N", 2, "t2"), r(0, "Goblet Squat", "W", 1, "t0"), r(0, "Goblet Squat", "N", 1, "t1"),
+    r(1, "Machine Chest Press", "N", 1, "t4", "DB Incline Press"),
+    r(3, "Leg Extension", "N", 1, "t5"),
+  ]);
+  assert.deepEqual(w.exercises.map((e) => e.name), ["Goblet Squat", "Machine Chest Press", "Row", "Leg Extension"]);
+  assert.deepEqual(w.exercises[0].sets.map((x) => `${x.set_type}${x.set_no}`), ["W1", "N1", "N2"]);
+  assert.equal(w.exercises[1].swappedFrom, "DB Incline Press");
+  assert.equal(w.exercises[2].sets.length, 0);
+  assert.equal(w.exercises[3].added, true);
+  assert.equal(w.current, 3);
+  assert.deepEqual(L.liveWorkout(null, []), { exercises: [], current: -1 });
+});
+
+test("searchLibrary matches every word against name, muscles and equipment", () => {
+  const lib = {
+    a: { exercise: "Leg Extension", primary_muscles: "Quads", equipment: "machine" },
+    b: { exercise: "Leg Press", primary_muscles: "Quads, Glutes", equipment: "machine" },
+    c: { exercise: "Goblet Squat", primary_muscles: "Quads", equipment: "dumbbells" },
+    d: { exercise: "Barbell Deadlift", primary_muscles: "Glutes", equipment: "barbell", offer: false },
+  };
+  assert.deepEqual(L.searchLibrary(lib, "").map((e) => e.exercise), ["Goblet Squat", "Leg Extension", "Leg Press"]);
+  assert.deepEqual(L.searchLibrary(lib, "leg").map((e) => e.exercise), ["Leg Extension", "Leg Press"]);
+  assert.deepEqual(L.searchLibrary(lib, "quads dumbbell").map((e) => e.exercise), ["Goblet Squat"]);
+  assert.deepEqual(L.searchLibrary(lib, "deadlift"), []); // ruled out by the client's flags
+});
+
+test("agoText", () => {
+  assert.equal(L.agoText(20e3), "just now");
+  assert.equal(L.agoText(5 * 60e3), "5 min ago");
+  assert.equal(L.agoText(130 * 60e3), "2 h 10 min ago");
+});
