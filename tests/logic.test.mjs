@@ -360,3 +360,10 @@ test("customName tidies a typed exercise name", () => {
   assert.equal(L.customName(null), "");
   assert.equal(L.customName("x".repeat(80)).length, 60);
 });
+
+test("planLine says per hand for two-dumbbell exercises with a target load", () => {
+  const t = L.toTarget({ sets: 3, reps: "10-12", target_kg: 10, target_rir: "3" });
+  assert.equal(L.planLine(t, true), "3 × 10–12 · 10 kg per hand · RIR 3");
+  assert.equal(L.planLine(t), "3 × 10–12 · 10 kg · RIR 3");
+  assert.equal(L.planLine(L.toTarget({ sets: 3, reps: "10-12" }), true), "3 × 10–12");
+});

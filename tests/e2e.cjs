@@ -48,6 +48,7 @@ async function run(name, device) {
   await page.click("[data-a=start]");
   await page.waitForSelector(".srow");
   check((await page.textContent(".extitle")).trim() === "DB Hip Thrust", "workout starts on the first exercise");
+  check(!(await page.textContent(".shead")).includes("hand"), "one-dumbbell exercises just say kg");
   check((await page.locator(".srow").count()) === 4, "1 warm-up + 3 working sets");
   await shot("2-workout");
 
@@ -103,6 +104,7 @@ async function run(name, device) {
   await page.click(".swapnote");
   check((await page.textContent(".extitle")).trim() === "Seated DB Shoulder Press", "the superset link jumps to the partner");
   check((await page.textContent(".swapnote")).includes("Superset with Lat Pulldown"), "and the partner links back");
+  check((await page.textContent(".shead")).includes("kg/hand"), "two-dumbbell exercises ask for kg per hand");
 
   // Go to the bodyweight exercise (no kg column).
   await page.click('.tile[data-i="3"]');
