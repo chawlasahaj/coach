@@ -16,7 +16,7 @@
 
 var TABS = {
   Clients: ["client_id", "name", "token", "show_rir", "active", "notes", "flags"],
-  Exercises: ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps", "avoid_for", "per_hand"],
+  Exercises: ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps", "avoid_for", "per_hand", "per_side"],
   Program: ["client_id", "session", "session_name", "order", "exercise", "sets", "reps", "target_kg", "target_rir", "rest_sec", "warmup_sets", "note"],
   Log: ["logged_at", "client_id", "date", "instance_id", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir", "entry_id", "swapped_from"],
   Sessions: ["instance_id", "client_id", "date", "session", "session_name", "started_at", "finished_at", "duration_min", "sets_done", "note"],
@@ -38,7 +38,7 @@ var KEY_COLUMNS = { Clients: "client_id", Exercises: "exercise", Program: "exerc
 var PROGRAM_FIELDS = ["session", "session_name", "order", "exercise", "sets", "reps", "target_kg", "target_rir", "rest_sec", "warmup_sets", "note"];
 // Exercises columns the app always gets (as "" when missing). Any other column the coach adds
 // goes through too, so new library columns don't need a redeploy. avoid_for never leaves.
-var EXERCISE_FIELDS = ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps", "per_hand"];
+var EXERCISE_FIELDS = ["exercise", "video_url", "primary_muscles", "secondary_muscles", "bodyweight", "cues", "pattern", "equipment", "swaps", "per_hand", "per_side"];
 var PRIVATE_EXERCISE_FIELDS = ["avoid_for"];
 var LOG_FIELDS = ["entry_id", "instance_id", "date", "logged_at", "session", "session_name", "exercise", "set_type", "set_no", "kg", "reps", "rir", "swapped_from"];
 // The movement patterns the Exercises tab offers in its dropdown. Swaps are found within a pattern.
@@ -100,9 +100,12 @@ function setup() {
     SpreadsheetApp.newDataValidation().requireCheckbox().build()
   );
   // Ticked for exercises with a dumbbell in each hand: the app asks for kg per hand.
-  ex.getRange(2, eh.per_hand + 1, ex.getMaxRows() - 1, 1).setDataValidation(
-    SpreadsheetApp.newDataValidation().requireCheckbox().build()
-  );
+  // per_side: one side at a time (single-leg, single-arm): reps and time count each side.
+  ["per_hand", "per_side"].forEach(function (col) {
+    ex.getRange(2, eh[col] + 1, ex.getMaxRows() - 1, 1).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireCheckbox().build()
+    );
+  });
 
   seed_(ss);
   var blank = ss.getSheetByName("Sheet1");

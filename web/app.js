@@ -181,7 +181,9 @@ function viewHome(d) {
   const g = activeGroup || groups.find((x) => x.session === S.pick) || next || groups[groups.length - 1];
   const items = g.items.map((r) => ({ name: r.exercise, lib: libFor(d, r.exercise), target: L.toTarget(r) }));
   const muscles = L.muscleSummary(items);
-  const mins = L.estimateMinutes(items.map((i) => i.target));
+  // Timed at this client's own pace once they've finished a workout or two.
+  const pace = L.paceRatio(d, groups, (n) => (libFor(d, n).per_side ? 2 : 1));
+  const mins = L.estimateMinutes(items.map((i) => ({ target: i.target, sides: i.lib.per_side ? 2 : 1 })), pace.ratio);
   const tag = S.active ? "In progress" : g === next ? "Up next" : done.has(g.session) ? "Done before" : "Picked";
   const hi = d.client.name ? `Hi ${esc(d.client.name)} · ` : "";
 
@@ -209,18 +211,23 @@ function viewHome(d) {
          .join("")}</div>`
     : "";
 
+  // Supersets are bracketed together under a label, so it's clear before the workout starts.
   const rows = items
-    .map(
-      ({ name, lib, target }) => `<li class="exrow">
+    .map(({ name, lib, target }, i) => {
+      const ss = L.supersetOf(items, i);
+      const label = ss && ss.from === i
+        ? `<li class="sslabel">${icon("swap", 16)}<span>Superset: one set of each, back to back, then rest</span></li>`
+        : "";
+      return `${label}<li class="exrow${ss ? " ss" : ""}">
         <a class="thumb" href="${esc(L.videoHref(lib.video_url, name))}" target="_blank" rel="noopener" aria-label="Watch ${esc(name)}">${thumb(lib, name, `<span class="play">${icon("play", 14)}</span>`)}</a>
         <div class="exinfo">
           <div class="exname">${esc(name)}</div>
-          <div class="exsub">${esc(L.planLine(target, lib.per_hand))}</div>
+          <div class="exsub">${esc(L.planLine(target, lib))}</div>
           ${target.note ? `<div class="exnote">${esc(target.note)}</div>` : ""}
           ${chips(lib)}
         </div>
-      </li>`,
-    )
+      </li>`;
+    })
     .join("");
 
   return `${top}
@@ -233,7 +240,7 @@ function viewHome(d) {
     ${muscleCards}
     <div class="listhead">
       <h2 class="h2">${plural(items.length, "Exercise")}</h2>
-      <p class="sub">Estimated workout time is ${mins} min</p>
+      <p class="sub">Estimated workout time is ${mins} min${pace.sessions ? " at your usual pace" : ""}</p>
     </div>
     <ul class="exlist">${rows}</ul>
     ${S.token === "demo" ? `<button class="linkbtn muted" data-a="resetDemo">Reset demo data</button>` : ""}
@@ -270,7 +277,7 @@ function viewWatch(d) {
       const working = e.sets.filter((x) => x.set_type !== "W").length;
       const state = !finished && i === w.current ? "now" : e.target && working >= e.target.sets ? "done" : "";
       const label = { now: "Now", done: "Done" }[state] || (working ? `${working} of ${e.target ? e.target.sets : working}` : "");
-      const sub = e.swappedFrom ? `Instead of ${e.swappedFrom}` : e.added ? "Added today" : e.target ? L.planLine(e.target) : "";
+      const sub = e.swappedFrom ? `Instead of ${e.swappedFrom}` : e.added ? "Added today" : e.target ? L.planLine(e.target, libFor(d, e.name)) : "";
       const setsText = e.sets.length
         ? e.sets.map((x) => `${x.set_type === "W" ? "W " : ""}${L.setText(x, bw)}`).join(" · ")
         : "Not started";
@@ -343,18 +350,32 @@ function viewWorkout(d) {
     .map((e, i) => {
       const w = e.sets.filter((s) => s.type === "N");
       const complete = w.length > 0 && w.every((s) => s.done);
-      return `<button class="tile${i === a.idx ? " on" : ""}${complete ? " complete" : ""}" data-a="go" data-i="${i}" aria-label="${esc(e.name)}${complete ? ", done" : ""}">
+      const ss = L.supersetOf(a.exercises, i);
+      const tile = `<button class="tile${i === a.idx ? " on" : ""}${complete ? " complete" : ""}" data-a="go" data-i="${i}" aria-label="${esc(e.name)}${complete ? ", done" : ""}${ss ? ", superset" : ""}">
         <span class="tthumb">${thumb(libFor(d, e.name), e.name, complete ? `<span class="tdone">${icon("check", 18)}</span>` : "")}</span>
         <span class="tbar"></span></button>`;
+      return `${ss && ss.from === i ? '<span class="ssband">' : ""}${tile}${ss && ss.to === i ? "</span>" : ""}`;
     })
     .join("") +
     `<button class="tile" data-a="addEx" aria-label="Add an exercise"><span class="tthumb addthumb">${icon("plus", 26)}</span><span class="tbar hidden"></span></button>`;
 
   const sup = L.supersetOf(a.exercises, a.idx);
   const partner = sup && (a.idx < sup.to ? a.idx + 1 : sup.from);
+  const pname = sup ? esc(a.exercises[partner].name) : "";
   const superset = sup
-    ? `<button class="swapnote" data-a="go" data-i="${partner}">${icon("swap", 16)}<span>Superset with ${esc(a.exercises[partner].name)}</span></button>`
+    ? `<div class="ssbox">
+        <p class="sshead">${icon("swap", 16)}<span>Superset · ${a.idx - sup.from + 1} of ${sup.to - sup.from + 1}</span></p>
+        <p class="sstext">${a.idx < sup.to
+          ? `Do a set here, then go straight to <b>${pname}</b>. No rest in between.`
+          : `Do a set here straight after ${esc(a.exercises[a.idx - 1].name)}, then rest ${L.fmtClock(ex.target.rest)} and go back to <b>${pname}</b>.`}</p>
+        <button class="ssgo" data-a="go" data-i="${partner}">${a.idx < sup.to ? "Go to" : "Back to"} ${pname} ${icon("next", 16)}</button>
+      </div>`
     : "";
+  // After a set here, the bottom button points at the partner while the pair is mid-round.
+  const ticked = (e) => e.sets.filter((s) => s.type === "N" && s.done).length;
+  const hasLeft = (e) => e.sets.some((s) => s.type === "N" && !s.done);
+  const ssTurn = sup && hasLeft(a.exercises[partner]) &&
+    (a.idx < sup.to ? ticked(ex) > ticked(a.exercises[partner]) : ticked(ex) >= ticked(a.exercises[partner]) && ticked(ex) > 0);
 
   const rows = ex.sets
     .map((s, i) => {
@@ -381,7 +402,7 @@ function viewWorkout(d) {
         <button class="badge${s.type === "W" ? " w" : ""}" data-a="setmenu" data-si="${i}" aria-label="Set ${n} options">${n}</button>
         <div class="tgt${muted ? " muted" : ""}">${col.split(" × ").map((p, j) => `<span>${j ? "× " : ""}${esc(p)}</span>`).join(" ")}</div>
         ${bw ? "" : `<input class="cell" data-f="kg" data-si="${i}" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="${esc(sg.kg)}" value="${esc(s.kg)}" aria-label="Set ${n} kilograms${lib.per_hand ? " per hand" : ""}">`}
-        <input class="cell" data-f="reps" data-si="${i}" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="${esc(sg.reps)}" value="${esc(s.reps)}" aria-label="Set ${n} reps">
+        <input class="cell" data-f="reps" data-si="${i}" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="${esc(sg.reps)}" value="${esc(s.reps)}" aria-label="Set ${n} reps${lib.per_side ? " each side" : ""}">
         ${rirCell}
         <button class="chk${s.done ? " on" : ""}" data-a="tick" data-si="${i}" aria-pressed="${s.done}" aria-label="Set ${n} done">${s.done ? icon("check", 20) : ""}</button>
       </div>`;
@@ -421,7 +442,7 @@ function viewWorkout(d) {
         <span>Set</span>
         <button class="tgl" data-a="toggleLast" aria-label="Switch between target and last time">${ex.showLast ? "Last" : "Target"} ${icon("swap", 18)}</button>
         ${bw ? "" : `<span>${lib.per_hand ? "kg/hand" : "kg"}</span>`}
-        <span>Reps</span>
+        <span>${lib.per_side ? "Reps/side" : "Reps"}</span>
         ${showRir ? "<span>RIR</span>" : ""}
         <button class="chk${allDone ? " on" : ""}" data-a="tickAll" aria-label="Tick every set">${allDone ? icon("check", 20) : ""}</button>
       </div>
@@ -430,9 +451,11 @@ function viewWorkout(d) {
     <button class="addset" data-a="addset" aria-label="Add a set">${icon("plus")}</button>
   </main>
   <footer class="cta">
-    <button class="btn ${ctaPrimary ? "btn-primary" : "btn-secondary"}" data-a="${isLast ? "finish" : "next"}">
+    ${ssTurn
+      ? `<button class="btn btn-primary" data-a="go" data-i="${partner}"><span class="ell">Superset: ${a.idx < sup.to ? "" : "back to "}${pname}</span>${icon("next", 20)}</button>`
+      : `<button class="btn ${ctaPrimary ? "btn-primary" : "btn-secondary"}" data-a="${isLast ? "finish" : "next"}">
       <span class="ell">${isLast ? "Finish Workout" : `Next: ${esc(a.exercises[a.idx + 1].name)}`}</span>${icon("next", 20)}
-    </button>
+    </button>`}
   </footer>`;
 }
 
@@ -594,7 +617,7 @@ const SHEETS = {
     const bw = !!lib.bodyweight;
     const perfs = L.performances(d.log, ex.name, S.active.instance_id).slice(0, 4);
     return `<h2 class="sh-title">${esc(ex.name)}</h2>
-      <p class="sh-sub">${esc(L.planLine(ex.target, lib.per_hand))} · rest ${L.fmtClock(ex.target.rest)}</p>
+      <p class="sh-sub">${esc(L.planLine(ex.target, lib))} · rest ${L.fmtClock(ex.target.rest)}</p>
       ${ex.target.note ? `<div class="callout"><b>From your coach</b><br>${esc(ex.target.note)}</div>` : ""}
       ${lib.cues ? `<h3 class="sh-h">How to</h3><p class="sh-p">${esc(lib.cues)}</p>` : ""}
       ${chips(lib)}

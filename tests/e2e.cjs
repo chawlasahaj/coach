@@ -43,6 +43,7 @@ async function run(name, device) {
   check((await page.textContent(".eyebrow")).includes("Session 2 of 4"), "demo opens on session 2 (session 1 already done)");
   check((await page.textContent(".title")).includes("Week 1 · Day B"), "shows Week 1 · Day B");
   check((await page.locator(".mcard").count()) >= 3, "target muscle cards render");
+  check((await page.locator(".sslabel").count()) === 1 && (await page.locator(".exrow.ss").count()) === 2, "the superset is bracketed on the home screen");
   await shot("1-home");
 
   await page.click("[data-a=start]");
@@ -92,7 +93,9 @@ async function run(name, device) {
 
   // Superset: the pulldown (rest 0) leads into the shoulder press, and the timer still runs after it.
   await page.click('.tile[data-i="1"]');
-  check((await page.textContent(".swapnote")).includes("Superset with Seated DB Shoulder Press"), "a superset names its partner");
+  check((await page.textContent(".ssbox")).includes("Superset · 1 of 2"), "a superset says so on the exercise");
+  check((await page.textContent(".ssbox")).includes("go straight to Seated DB Shoulder Press"), "and what to do next");
+  check((await page.locator(".ssband .tile").count()) === 2, "the pair sits together in the exercise strip");
   await page.click("[data-a=rest]");
   if (await page.locator("[data-a=restSkip]").count()) await page.click("[data-a=restSkip]");
   else await page.click(".backdrop", { position: { x: 10, y: 10 } });
@@ -101,9 +104,11 @@ async function run(name, device) {
   await page.waitForSelector(".rirgrid");
   await page.click('.rirbtn[data-v="2"]');
   check((await page.textContent("[data-rest]")).trim() !== "0:00", "the timer runs after a superset's first exercise");
-  await page.click(".swapnote");
+  check((await page.textContent(".cta .btn")).includes("Superset: Seated DB Shoulder Press"), "after a set, the main button points at the partner");
+  await shot("2b-superset");
+  await page.click(".ssgo");
   check((await page.textContent(".extitle")).trim() === "Seated DB Shoulder Press", "the superset link jumps to the partner");
-  check((await page.textContent(".swapnote")).includes("Superset with Lat Pulldown"), "and the partner links back");
+  check((await page.textContent(".ssbox")).includes("Back to Lat Pulldown"), "and the partner links back");
   check((await page.textContent(".shead")).includes("kg/hand"), "two-dumbbell exercises ask for kg per hand");
 
   // Go to the bodyweight exercise (no kg column).
@@ -127,6 +132,7 @@ async function run(name, device) {
   await page.click("[data-a=home]");
   await page.waitForSelector(".exlist");
   check((await page.textContent(".eyebrow")).includes("Session 3 of 4"), "home moves on to session 3");
+  check((await page.textContent(".exlist")).includes("each side"), "one-side exercises say each side");
   await page.click("[data-a=history]");
   await page.waitForSelector(".hcard");
   check(await page.locator(".hcard").count() === 2, "history lists both finished sessions");
