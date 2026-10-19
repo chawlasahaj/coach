@@ -67,7 +67,7 @@ function normalizeBoot(raw) {
   for (const e of raw.exercises || []) {
     const name = String(e.exercise ?? "").trim();
     if (!name) continue;
-    exercises[norm(name)] = { ...e, exercise: name, bodyweight: truthy(e.bodyweight), per_hand: truthy(e.per_hand) };
+    exercises[norm(name)] = { ...e, exercise: name, bodyweight: truthy(e.bodyweight), per_hand: truthy(e.per_hand), per_side: truthy(e.per_side) };
   }
   return {
     client: {

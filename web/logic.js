@@ -347,10 +347,56 @@ export function history(db) {
 
 /* ---------- summaries ---------- */
 
-export function estimateMinutes(targets) {
+// The time model: moving to and setting up each exercise, each warm-up, and each working set's
+// work (twice over for one side at a time) plus its planned rest. A superset's first exercise
+// has rest 0, so a pair is timed as done back to back.
+const MOVE_SEC = 90;
+const WARMUP_SEC = 60;
+const WORK_SEC = 60;
+
+function exerciseSeconds(t, sides = 1) {
+  return MOVE_SEC + t.warmup * WARMUP_SEC + t.sets * (sides * WORK_SEC + t.rest);
+}
+
+// items: [{ target, sides }] or bare targets. ratio: this client's own pace (paceRatio).
+export function estimateMinutes(items, ratio = 1) {
   let sec = 0;
-  for (const t of targets) sec += 60 + t.warmup * 60 + t.sets * (45 + t.rest);
-  return Math.max(5, Math.round(sec / 60));
+  for (const it of items) sec += it.target ? exerciseSeconds(it.target, it.sides || 1) : exerciseSeconds(it);
+  return Math.max(5, Math.round((sec * ratio) / 60));
+}
+
+// How long this client's workouts really take next to the model: their minutes over the
+// model's minutes for what they logged, the median of their last few finished workouts.
+// sidesOf(name) says 2 for one-side-at-a-time exercises.
+export function paceRatio(db, groups, sidesOf = () => 1, recent = 5) {
+  const byInstance = new Map();
+  for (const r of db.log || []) {
+    if (!byInstance.has(r.instance_id)) byInstance.set(r.instance_id, []);
+    byInstance.get(r.instance_id).push(r);
+  }
+  const finished = (db.sessions || [])
+    .filter((x) => x.finished_at && numOrNull(x.duration_min) > 0 && byInstance.has(x.instance_id))
+    .sort((a, b) => String(b.finished_at).localeCompare(String(a.finished_at)))
+    .slice(0, recent);
+  const ratios = [];
+  for (const x of finished) {
+    const g = groups.find((y) => y.session === numOrNull(x.session));
+    let sec = 0;
+    for (const e of liveWorkout(g, byInstance.get(x.instance_id)).exercises) {
+      const warmup = e.sets.filter((r) => r.set_type === "W").length;
+      const sets = e.sets.length - warmup;
+      if (!e.sets.length) continue;
+      sec += exerciseSeconds({ warmup, sets, rest: e.target ? e.target.rest : DEFAULT_REST_SEC }, sidesOf(e.name));
+    }
+    const actual = numOrNull(x.duration_min) * 60;
+    // Too short to say anything (a test, or a workout abandoned early).
+    if (sec >= 600 && actual >= 600) ratios.push(actual / sec);
+  }
+  if (!ratios.length) return { ratio: 1, sessions: 0 };
+  ratios.sort((a, b) => a - b);
+  const m = ratios.length >> 1;
+  const median = ratios.length % 2 ? ratios[m] : (ratios[m - 1] + ratios[m]) / 2;
+  return { ratio: Math.min(1.75, Math.max(0.75, median)), sessions: ratios.length };
 }
 
 export function splitList(s) {
@@ -463,11 +509,13 @@ export function targetText(t, bodyweight) {
   return r ? `${fmtNum(t.kg)} kg × ${r}` : `${fmtNum(t.kg)} kg`;
 }
 
-export function planLine(t, perHand = false) {
+// lib: the exercise's library entry, for "per hand" and "each side".
+export function planLine(t, lib = {}) {
   const parts = [];
   const r = repsLabel(t.reps);
-  parts.push(r ? `${t.sets} × ${r}` : `${t.sets} sets`);
-  if (t.kg != null) parts.push(`${fmtNum(t.kg)} kg${perHand ? " per hand" : ""}`);
+  const side = lib.per_side ? " each side" : "";
+  parts.push(r ? `${t.sets} × ${r}${side}` : `${t.sets} sets${side}`);
+  if (t.kg != null) parts.push(`${fmtNum(t.kg)} kg${lib.per_hand ? " per hand" : ""}`);
   if (t.rir) parts.push(`RIR ${String(t.rir).split(",").map((x) => x.trim()).filter(Boolean).join(", ")}`);
   return parts.join(" · ");
 }

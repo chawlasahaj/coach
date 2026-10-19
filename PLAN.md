@@ -25,10 +25,10 @@
   - workout: elapsed and rest timers, exercise strip, Video / Info / Warm Up / Note, set table with a Target ⇄ Last toggle and an RIR picker
   - finish summary, history, offline sync, demo mode
 - [x] **Sheet set up and script deployed.**
-- [ ] **Go live:** turn on GitHub Pages and merge to `main`, test with the Test client, then load Mom's plan and the current clients' blocks.
+- [x] **Go live:** GitHub Pages on, all clients' plans loaded.
 - [x] **Exercise library and swaps:** pattern, equipment, coach's swaps and injury flags in the Exercises tab; a Swap button in the workout that filters by missing equipment and never offers a flagged movement.
+- [x] **From the first sessions:** effort nudges towards the target RIR, warm-up ramps, a target RIR per set, "log the rest" at finish, supersets shown before and during the workout, a live view for the coach, adding and swapping in any exercise, kg per hand, and a time estimate that counts one-side exercises and learns each client's pace.
 - [ ] **2 · Polish from real use:**
-  - supersets (C1/C2 pairs)
   - a progress chart per exercise
   - pull-to-refresh
   - better thumbnails for exercises without a video

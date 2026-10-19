@@ -500,3 +500,23 @@ li.now .lstate { color: var(--accent); font-weight: 600; }
 li.done .lstate { color: var(--good); }
 .lsub { font-size: 14px; color: var(--ink-3); }
 .sub.small { margin-top: 18px; font-size: 14px; }
+
+/* ---------- supersets ---------- */
+
+.sslabel {
+  display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 6px 0 2px 13px;
+  border-left: 3px solid var(--accent); color: var(--accent); font-size: 15px; font-weight: 600;
+}
+.exrow.ss { padding-left: 13px; border-left: 3px solid var(--accent); }
+.sslabel + .exrow.ss .exinfo { border-top: 0; }
+
+.strip { align-items: flex-start; }
+.ssband { flex: none; display: flex; gap: 10px; padding: 0 5px; margin: 0 -5px; border-radius: 12px; background: var(--accent-soft); }
+
+.ssbox { margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); }
+.sshead { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--accent); font-weight: 600; font-size: 15px; }
+.sstext { margin: 4px 0 0; font-size: 15px; line-height: 1.4; color: var(--ink); }
+.ssgo {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 36px;
+  color: var(--accent); font-weight: 600; font-size: 15px;
+}

@@ -100,6 +100,7 @@ To build a block quickly, copy one week's rows, paste them below, then change th
 - `equipment`: what it needs, comma-separated: dumbbells, barbell, rack, bench, cable, machine, band, kettlebell, pull-up bar, bodyweight.
 - `swaps`: your preferred alternatives, comma-separated, best first. Use names exactly as they appear in this tab.
 - `avoid_for`: injury flags this exercise is wrong for, e.g. `wrist` or `back, knee`. Matched against each client's `flags`. This column never leaves the Sheet; every other column in this tab is sent to the app.
+- `per_side`: tick it for one-side-at-a-time exercises (single-leg, single-arm, carries with one weight). The app says "each side" and counts the time twice.
 - `per_hand`: tick it for exercises with a dumbbell in each hand (presses, lunges, curls, farmer's carry). The weight box then reads **kg/hand**, so nobody logs the two dumbbells added together. Leave it off for one-dumbbell exercises like the goblet squat or single-arm row.
 
 ### Swapping exercises
@@ -115,6 +116,8 @@ When a machine or bench is taken, the client taps **Swap** in the workout:
 To do something that isn't in the plan, the **+** at the end of the exercise strip adds any exercise from the library to that workout.
 
 The body diagram knows these muscles: Chest, Front Delts, Side Delts, Rear Delts, Shoulders, Biceps, Triceps, Forearms, Abs, Core, Obliques, Quads, Adductors, Hamstrings, Glutes, Calves, Lats, Upper Back, Traps and Lower Back. Any other name gets a plain figure.
+
+**Estimated time** on the home screen allows 1.5 minutes to set up each exercise, 1 minute per warm-up, and 1 minute of work per set (2 for `per_side`) plus its rest. A superset's first exercise has no rest of its own, so the estimate assumes the pair is done back to back. Once a client has finished a workout in the app, the estimate is scaled to their own pace (how long their last few workouts took next to this model).
 
 ## Seeing what they did
 

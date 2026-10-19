@@ -226,8 +226,45 @@ test("muscleSummary counts primary muscles by sets", () => {
 
 test("estimateMinutes is sensible", () => {
   const t = L.toTarget({ sets: 3, rest_sec: 90 });
-  // Per exercise: 1 min setup + 3 sets × (45 s work + 90 s rest) = 465 s.
-  assert.equal(L.estimateMinutes([t, t, t, t]), 31);
+  // Per exercise: 90 s to move and set up + 3 sets × (60 s work + 90 s rest) = 540 s.
+  assert.equal(L.estimateMinutes([t, t, t, t]), 36);
+  assert.equal(L.estimateMinutes([{ target: t, sides: 1 }]), 9);
+  // One side at a time: twice the work, the same rest.
+  assert.equal(L.estimateMinutes([{ target: t, sides: 2 }]), 12);
+  // A superset's first exercise has no rest of its own.
+  assert.equal(L.estimateMinutes([L.toTarget({ sets: 3, rest_sec: 0 })]), 5);
+  // At a client's own pace.
+  assert.equal(L.estimateMinutes([t, t, t, t], 1.25), 45);
+});
+
+test("paceRatio compares real workouts with the model", () => {
+  // A real session, as logged: 54 minutes against about 45 modelled.
+  const program = [
+    ["Goblet Squat", 90], ["Single-Leg Hip Thrust", 60], ["Shoulder Press", 0], ["Lat Pulldown", 90],
+    ["Incline Press", 0], ["Single-Arm Row", 90], ["Suitcase Carry", 60],
+  ].map(([exercise, rest], i) => ({ session: 3, session_name: "S3", order: i + 1, exercise, sets: 3, reps: "10-12", rest_sec: rest }));
+  const groups = L.groupProgram(program);
+  const log = [];
+  const add = (slot, exercise, warm, work) => {
+    for (let k = 0; k < warm; k++) log.push({ instance_id: "x", entry_id: `x.${slot}.w${k}`, exercise, set_type: "W", set_no: k + 1 });
+    for (let k = 0; k < work; k++) log.push({ instance_id: "x", entry_id: `x.${slot}.n${k}`, exercise, set_type: "N", set_no: k + 1 });
+  };
+  add(0, "Goblet Squat", 1, 3);
+  add(1, "Single-Leg Hip Thrust", 0, 3);
+  add(2, "Shoulder Press", 1, 3);
+  add(3, "Lat Pulldown", 1, 3);
+  add(4, "Machine Chest Press", 1, 3);
+  add(7, "Leg Extension", 0, 1);
+  const sessions = [{ instance_id: "x", session: 3, finished_at: "2026-10-18T01:28:33Z", duration_min: 54 }];
+  const sides = (n) => (n === "Single-Leg Hip Thrust" ? 2 : 1);
+  const pace = L.paceRatio({ log, sessions }, groups, sides);
+  assert.equal(pace.sessions, 1);
+  assert.ok(Math.abs(pace.ratio - 3240 / 2730) < 1e-9, String(pace.ratio));
+  // Nothing finished, or nothing long enough to judge: the model as it is.
+  assert.deepEqual(L.paceRatio({ log, sessions: [] }, groups), { ratio: 1, sessions: 0 });
+  assert.deepEqual(L.paceRatio({ log, sessions: [{ ...sessions[0], duration_min: 4 }] }, groups), { ratio: 1, sessions: 0 });
+  // Clamped so one odd day can't make a wild estimate.
+  assert.equal(L.paceRatio({ log, sessions: [{ ...sessions[0], duration_min: 200 }] }, groups, sides).ratio, 1.75);
 });
 
 const LIB = Object.fromEntries(
@@ -363,7 +400,8 @@ test("customName tidies a typed exercise name", () => {
 
 test("planLine says per hand for two-dumbbell exercises with a target load", () => {
   const t = L.toTarget({ sets: 3, reps: "10-12", target_kg: 10, target_rir: "3" });
-  assert.equal(L.planLine(t, true), "3 × 10–12 · 10 kg per hand · RIR 3");
+  assert.equal(L.planLine(t, { per_hand: true }), "3 × 10–12 · 10 kg per hand · RIR 3");
   assert.equal(L.planLine(t), "3 × 10–12 · 10 kg · RIR 3");
-  assert.equal(L.planLine(L.toTarget({ sets: 3, reps: "10-12" }), true), "3 × 10–12");
+  assert.equal(L.planLine(L.toTarget({ sets: 3, reps: "10-12" }), { per_hand: true }), "3 × 10–12");
+  assert.equal(L.planLine(L.toTarget({ sets: 3, reps: "10-12" }), { per_side: true }), "3 × 10–12 each side");
 });
