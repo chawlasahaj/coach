@@ -56,7 +56,7 @@ GitHub says Pages isn't meant to run a business; a free tool for a few people is
    - tick `show_rir` and `active`
    - `notes` is yours only; the app never sends it
    - `flags`: injuries to work around, e.g. `wrist, knee`. The Swap button never offers this person an exercise whose `avoid_for` matches. Flags stay in the Sheet; the app never receives them
-2. Click that row, then **Coach → Make link for selected client**. Copy the link and send it on WhatsApp.
+2. Click that row, then **Coach → Make link for selected client**. Copy the link and send it on WhatsApp. Once a client has a token, their link also shows in the `link` column, so you can tap it in the Google Sheets app on your phone. That column is one formula in H2 (`=ARRAYFORMULA(IF(C2:C="","",INDEX(Settings!B:B,MATCH("app_url",Settings!A:A,0))&"?u="&C2:C))`); leave the cells under it empty.
 3. Try the *Test* client's link yourself first.
 
 ### 5. Install it on their phone or iPad
