@@ -26,7 +26,7 @@ tests/                logic and Apps Script unit tests, Playwright end-to-end
 - Spreadsheet ID: `1eWKwvsCTP3qWoUeNj9bbnYJIepQTuN1FN7ZwVk2sj9E`. Sharing is restricted to the coach's account; keep it that way.
 - Read and write it with the Google Sheets connector. Read before writing, write at the next free row, then read back to check.
 - **Tabs:**
-  - `Clients` (`client_id`, `name`, `token`, `show_rir`, `active`, `notes`, `flags`)
+  - `Clients` (`client_id`, `name`, `token`, `show_rir`, `active`, `notes`, `flags`, `link`). `link` is a single ARRAYFORMULA in H2 that builds every client's link from Settings → `app_url`. Don't write over it.
   - `Exercises`: the library
   - `Program`: one row per exercise per session
   - `Log`: one row per ticked set
