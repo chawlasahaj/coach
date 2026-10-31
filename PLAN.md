@@ -14,7 +14,7 @@
 | Offline first | Every set is saved on the device the moment it's ticked and synced when there's signal. A workout survives closing the app. |
 | Sessions in order, not by weekday | A missed day doesn't skip anything. The plan waits for the client. |
 | RIR asked after each working set, in words | "How many more could you have done?" with 0 to 5+ buttons. Can be switched off per client (`show_rir`). |
-| Suggestions in grey | Each box suggests the coach's target load if set, otherwise last time's. Ticking accepts the suggestion. |
+| Boxes come pre-filled | Set 1 starts at the coach's target load, otherwise last time's; each later set copies the set before it. The numbers look like real values, so ticking is usually all it takes. Tapping a box selects it, so typing replaces it. |
 | No client data in this repo | The repo is public. |
 
 ## Phases
@@ -27,7 +27,7 @@
 - [x] **Sheet set up and script deployed.**
 - [x] **Go live:** GitHub Pages on, all clients' plans loaded.
 - [x] **Exercise library and swaps:** pattern, equipment, coach's swaps and injury flags in the Exercises tab; a Swap button in the workout that filters by missing equipment and never offers a flagged movement.
-- [x] **From the first sessions:** effort nudges towards the target RIR, warm-up ramps, a target RIR per set, "log the rest" at finish, supersets shown before and during the workout, a live view for the coach, adding and swapping in any exercise, kg per hand, and a time estimate that counts one-side exercises and learns each client's pace.
+- [x] **From the first sessions:** effort nudges towards the target RIR, warm-up ramps, a target RIR per set, "log the rest" at finish, supersets shown before and during the workout, a live view for the coach, adding and swapping in any exercise, kg per hand, a time estimate that counts one-side exercises and learns each client's pace, sets pre-filled from the set before, and a check on reps over 50.
 - [ ] **2 · Polish from real use:**
   - a progress chart per exercise
   - pull-to-refresh
