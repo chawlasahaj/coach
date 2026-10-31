@@ -80,8 +80,8 @@ Use one row per exercise per session.
 | `order` | Exercise order within the session. Optional; row order is used otherwise. |
 | `exercise` | Pick from the dropdown. It lists the Exercises tab. |
 | `sets` | Number of working sets. |
-| `reps` | `8-10`, `12`, or text like `30s`. |
-| `target_kg` | Optional. When blank, the app suggests last time's weight. |
+| `reps` | `8-10`, `12`, or text like `30s`. Holds and carries take a plain number of seconds or metres (`30`). The app knows them by name (plank, hold, hang, stretch, wall sit) or the `carry` pattern. On anything else, a client logging over 50 reps is asked to check the number. |
+| `target_kg` | Optional. Fills in set 1; when blank, set 1 gets last time's weight. Every later set starts with what the client did on the set before, so most sets are just a tick. |
 | `target_rir` | Optional, e.g. `2` or `1-2`. For a top set and back-offs, give one per set: `1, 2, 3, 3`. After each set the app tells the client if they stopped short of it. |
 | `rest_sec` | Rest timer after each set. Defaults to 90. `0` makes a superset with the next exercise: both show a "Superset with …" link, and the timer uses the second one's rest (so it still runs if they do straight sets). |
 | `warmup_sets` | Warm-up rows added at the top. Defaults to 0. They ramp up towards the first working set (e.g. 40% × 10, 60% × 5, 80% × 3), never under the 20 kg bar on barbell lifts. |

@@ -87,6 +87,88 @@ test("suggested reps stay inside the coach's range when a new phase moves it", (
   assert.deepEqual(L.suggest(L.toTarget({ reps: "max" }), last, 0, false), { kg: "20", reps: "12" });
 });
 
+const blank = (type = "N") => ({ type, kg: "", reps: "" });
+const typed = (kg, reps, type = "N") => ({ type, kg, reps });
+const show = (list) => list.map((p) => `${p.kg}x${p.reps}`);
+
+test("prefills: the first working set keeps suggest(), the rest copy the set before", () => {
+  const t = L.toTarget({ sets: 3, reps: "8-10", target_kg: "" });
+  const last = { sets: [{ kg: 20, reps: 9 }, { kg: 22.5, reps: 8 }, { kg: 25, reps: 6 }] };
+  // Nothing typed: every working set follows set 1, not last time's set 2 and 3.
+  assert.deepEqual(show(L.prefills(t, [blank(), blank(), blank()], last, false)), ["20x9", "20x9", "20x9"]);
+  // The coach's load still leads set 1.
+  const coach = L.toTarget({ sets: 3, reps: "8-10", target_kg: 30 });
+  assert.deepEqual(show(L.prefills(coach, [blank(), blank(), blank()], last, false)), ["30x8", "30x8", "30x8"]);
+  // No target and no history: blank all the way down until set 1 gets numbers.
+  assert.deepEqual(show(L.prefills(L.toTarget({ sets: 3 }), [blank(), blank(), blank()], null, false)), ["x", "x", "x"]);
+  assert.deepEqual(show(L.prefills(L.toTarget({ sets: 3 }), [typed("10", "12"), blank(), blank()], null, false)), ["x", "10x12", "10x12"]);
+});
+
+test("prefills carry what was typed down the list, box by box", () => {
+  const t = L.toTarget({ sets: 4, reps: "8-10", target_kg: 30 });
+  // Set 1 typed: set 2 follows it, set 3 follows set 2's pre-fill, and so on.
+  assert.deepEqual(show(L.prefills(t, [typed("32.5", "10"), blank(), blank(), blank()], null, false)), ["30x8", "32.5x10", "32.5x10", "32.5x10"]);
+  // Only kg typed on set 2: its reps come from its own pre-fill, and set 3 gets both.
+  assert.deepEqual(show(L.prefills(t, [blank(), typed("35", ""), blank(), blank()], null, false)), ["30x8", "30x8", "35x8", "35x8"]);
+  // Set 3 typed: set 4 follows set 3, not set 1. (Set 3's own box keeps what was typed; the app shows that.)
+  assert.deepEqual(show(L.prefills(t, [typed("32.5", "10"), blank(), typed("27.5", "12"), blank()], null, false)), ["30x8", "32.5x10", "32.5x10", "27.5x12"]);
+  // Half-typed numbers pass on tidied.
+  assert.deepEqual(show(L.prefills(t, [typed("12.", "09"), blank()], null, false)), ["30x8", "12x9"]);
+});
+
+test("prefills: warm-ups ramp to the first working set's suggestion and don't feed the rest", () => {
+  const t = L.toTarget({ sets: 2, reps: "8-10", target_kg: 60, warmup_sets: 2 });
+  const sets = [typed("40", "5", "W"), blank("W"), blank(), blank()];
+  assert.deepEqual(show(L.prefills(t, sets, null, false)), ["30x10", "45x4", "60x8", "60x8"]);
+  // Barbell warm-ups start at the bar.
+  assert.deepEqual(show(L.prefills(L.toTarget({ target_kg: 30, warmup_sets: 2 }), [blank("W"), blank("W"), blank()], null, false, 20)), ["20x10", "22.5x4", "30x"]);
+});
+
+test("prefills pass reps down on bodyweight work, holds and carries", () => {
+  const bw = L.toTarget({ sets: 3, reps: "12-15" });
+  assert.deepEqual(show(L.prefills(bw, [typed("", "14"), blank(), blank()], null, true)), ["x12", "x14", "x14"]);
+  // A 30 second hold done for 45: no clamping to the range on later sets.
+  const hold = L.toTarget({ sets: 3, reps: "30" });
+  assert.deepEqual(show(L.prefills(hold, [typed("", "45"), blank(), blank()], null, true)), ["x30", "x45", "x45"]);
+  // A carry: kg and metres both follow.
+  const carry = L.toTarget({ sets: 2, reps: "30-40", target_kg: 16 });
+  assert.deepEqual(show(L.prefills(carry, [typed("", "40"), blank()], null, false)), ["16x30", "16x40"]);
+});
+
+test("repsUnit tells reps from seconds and metres", () => {
+  const t = (reps) => L.toTarget({ reps });
+  assert.equal(L.repsUnit("Goblet Squat", { pattern: "squat" }, t("10-12")), "reps");
+  assert.equal(L.repsUnit("Plank", { pattern: "core" }, t("30")), "sec");
+  assert.equal(L.repsUnit("Side Plank", { pattern: "core" }, t("20-30")), "sec");
+  assert.equal(L.repsUnit("Wall Sit", { pattern: "squat" }, t("30")), "sec");
+  assert.equal(L.repsUnit("Hip Flexor Stretch", { pattern: "mobility" }, t("30")), "sec");
+  assert.equal(L.repsUnit("Dead Hang", {}, t("20")), "sec");
+  assert.equal(L.repsUnit("Hollow Body Hold", {}, t("")), "sec");
+  assert.equal(L.repsUnit("Loaded Carry", { pattern: "carry" }, t("30-40")), "m");
+  assert.equal(L.repsUnit("Farmer's Walk", {}, t("40")), "m");
+  assert.equal(L.repsUnit("Anything", {}, t("30s")), "sec");
+  assert.equal(L.repsUnit("Anything", {}, t("45 sec")), "sec");
+  assert.equal(L.repsUnit("Anything", {}, t("1 min")), "sec");
+  assert.equal(L.repsUnit("Anything", {}, t("40m")), "m");
+  // Look-alikes that are still reps.
+  assert.equal(L.repsUnit("Hanging Leg Raise", { pattern: "core" }, t("8-15")), "reps");
+  assert.equal(L.repsUnit("Walking Lunge", { pattern: "lunge" }, t("10")), "reps");
+  assert.equal(L.repsUnit("Cat-Cow", { pattern: "mobility" }, t("10")), "reps");
+  assert.equal(L.repsUnit("Custom Thing"), "reps");
+});
+
+test("tooManyReps flags slips over 50, once each", () => {
+  assert.equal(L.tooManyReps("151", "reps"), true);
+  assert.equal(L.tooManyReps("51", "reps"), true);
+  assert.equal(L.tooManyReps("50", "reps"), false);
+  assert.equal(L.tooManyReps("", "reps"), false);
+  assert.equal(L.tooManyReps("60", "sec"), false);
+  assert.equal(L.tooManyReps("80", "m"), false);
+  assert.equal(L.tooManyReps("151", "reps", ["151"]), false);
+  assert.equal(L.tooManyReps(151, "reps", ["151"]), false);
+  assert.equal(L.tooManyReps("115", "reps", ["151"]), true);
+});
+
 test("rirRange reads the coach's RIR column", () => {
   assert.deepEqual(L.rirRange("2"), { lo: 2, hi: 2 });
   assert.deepEqual(L.rirRange(2), { lo: 2, hi: 2 });

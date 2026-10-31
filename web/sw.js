@@ -2,7 +2,7 @@
 // the app opens instantly at the gym and picks up a new deploy on the next launch.
 // Calls to the Google Sheet are never cached here (the app keeps its own copy).
 
-const CACHE = "wt-shell-v3";
+const CACHE = "wt-shell-v4";
 const RUNTIME = "wt-runtime-v1";
 const SHELL = [
   "./",

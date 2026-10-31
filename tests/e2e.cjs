@@ -53,12 +53,24 @@ async function run(name, device) {
   check((await page.locator(".srow").count()) === 4, "1 warm-up + 3 working sets");
   await shot("2-workout");
 
-  // Tick the warm-up (uses the suggested numbers), then type a working set.
+  // Pre-filled numbers are real values in the boxes, marked data-pre.
+  const box = (si, f) => page.locator(`input[data-si="${si}"][data-f="${f}"]`);
+  const pre = async (si, f) => (await box(si, f).getAttribute("data-pre")) !== null;
+  check((await box(1, "kg").inputValue()) === "10" && (await pre(1, "kg")), "set 1 is pre-filled with the coach's load");
+  check((await box(3, "kg").inputValue()) === "10" && (await box(3, "reps").inputValue()) === "10", "and the sets below it copy set 1");
+  check((await box(0, "kg").inputValue()) === "5" && (await box(0, "reps").inputValue()) === "10", "the warm-up keeps its own ramp");
+
+  // Tick the warm-up (uses the pre-filled numbers), then type a working set.
   await page.click('.chk[data-si="0"]');
   check(await page.locator('.srow.done').count() === 1, "warm-up ticked from suggestions");
-  const kg = page.locator('input[data-si="1"][data-f="kg"]');
+  const kg = box(1, "kg");
   await kg.fill("12");
-  await page.locator('input[data-si="1"][data-f="reps"]').fill("11");
+  check((await box(2, "kg").inputValue()) === "12" && (await box(3, "kg").inputValue()) === "12", "typing on set 1 moves the sets below it straight away");
+  check(!(await pre(1, "kg")) && (await pre(2, "kg")), "typed and pre-filled boxes are told apart");
+  await box(1, "reps").fill("11");
+  check((await box(2, "reps").inputValue()) === "11" && (await box(3, "reps").inputValue()) === "11", "reps follow too");
+  check((await box(0, "kg").inputValue()) === "5", "set 1 doesn't move the warm-up");
+  await shot("2a-prefilled");
   await page.click('.chk[data-si="1"]');
   await page.waitForSelector(".rirgrid");
   await page.waitForTimeout(400);
@@ -74,7 +86,35 @@ async function run(name, device) {
   check((await page.textContent("#toast")).includes("Next set, add 1–2 reps"), "the nudge also pops up, in case the line is scrolled away");
   await page.click('.cell.rir[data-si="1"]');
   await page.click('.rirbtn[data-v="2"]');
+  check((await box(2, "kg").inputValue()) === "12" && (await box(2, "reps").inputValue()) === "11", "after the tick, set 2 shows what set 1 was logged at");
   await shot("4-logged");
+
+  // Tapping a pre-filled box selects it, so typing replaces the number.
+  await box(3, "kg").tap();
+  const sel = await box(3, "kg").evaluate((el) => [el.selectionStart, el.selectionEnd, el.value.length]);
+  check(sel[0] === 0 && sel[1] === sel[2] && sel[2] > 0, "tapping a pre-filled box selects its number");
+  await page.keyboard.type("14");
+  check((await box(3, "kg").inputValue()) === "14", "and typing replaces it");
+  // A phone that drops the selection still replaces the number on the first key.
+  await box(3, "reps").evaluate((el) => {
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  });
+  await page.keyboard.type("9");
+  check((await box(3, "reps").inputValue()) === "9", "the first key replaces a pre-fill even without the selection");
+  // A pre-filled set ticked then unticked goes back to following the set above.
+  await page.click('.chk[data-si="2"]');
+  await page.waitForSelector(".rirgrid");
+  await page.click('.panel [data-a=setRir][data-v=""]');
+  check((await page.locator(".srow.done").count()) === 3, "a pre-filled set ticks without typing");
+  await page.click('.chk[data-si="2"]');
+  check((await page.locator(".srow.done").count()) === 2 && (await pre(2, "kg")), "unticked, it's pre-filled again");
+  // Editing set 1 moves set 2 but never a box the client typed in.
+  await kg.fill("13");
+  check((await box(2, "kg").inputValue()) === "13", "set 2 follows an edit to set 1");
+  check((await box(3, "kg").inputValue()) === "14", "a typed box is never overwritten");
+  await kg.fill("12");
+  await page.locator(".extitle").click(); // leave the box
 
   await page.click("[data-a=toggleLast]");
   check((await page.textContent(".tgl")).includes("Last"), "target/last toggle flips");
@@ -115,6 +155,19 @@ async function run(name, device) {
   await page.click('.tile[data-i="3"]');
   check((await page.textContent(".extitle")).trim() === "Glute Bridge", "jump via the exercise strip");
   check(await page.locator('input[data-f="kg"]').count() === 0, "bodyweight exercise hides kg");
+  // Over 50 reps asks first: 151 is usually 15.
+  await box(0, "reps").fill("151");
+  check((await box(1, "reps").inputValue()) === "151", "bodyweight sets pass reps down");
+  await page.click('.chk[data-si="0"]');
+  await page.waitForSelector("[data-a=repsFix]");
+  check((await page.textContent(".sh-title")).includes("151 reps?"), "over 50 reps asks to check the number");
+  check((await page.locator(".srow.done").count()) === 0, "and nothing is ticked yet");
+  await page.waitForTimeout(300);
+  await shot("6a-check-reps");
+  await page.click("[data-a=repsFix]");
+  check(await box(0, "reps").evaluate((el) => document.activeElement === el && el.selectionEnd - el.selectionStart === 3), "fixing it puts you back in the box, number selected");
+  await page.keyboard.type("15");
+  check((await box(1, "reps").inputValue()) === "15", "the set below follows the fix");
   await page.click("[data-a=tickAll]");
   check(await page.locator(".srow.done").count() === 2, "tick-all completes every set");
   await shot("6-bodyweight");
@@ -213,11 +266,17 @@ async function run(name, device) {
   await page.click("[data-a=restSkip]");
   check((await page.textContent("[data-rest]")).trim() === "0:00", "rest can be skipped");
   await page.click('.chk[data-si="0"]');
+  // A big number typed but not ticked is still checked by log-all; "it's right" logs it.
+  const lastSi = (await page.locator(".srow").count()) - 1;
+  await box(lastSi, "reps").fill("60");
   // Log everything else from the suggestions, then throw it all away.
   await page.click("[data-a=menu]");
   await page.click(".panel [data-a=finish]");
   await page.waitForSelector("[data-a=logAll]");
   await page.click("[data-a=logAll]");
+  await page.waitForSelector("[data-a=repsOk]");
+  check((await page.textContent(".sh-title")).includes("60 reps?"), "log-all checks big numbers too");
+  await page.click("[data-a=repsOk]");
   check((await page.textContent("#toast")).startsWith("Logged"), "log-all ticks the rest");
   check(await page.locator("[data-a=logAll]").count() === 0, "nothing left unticked after log-all");
   check(Number(await page.textContent(".stats div:nth-child(2) b")) > 1, "the summary counts the logged sets");

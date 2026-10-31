@@ -118,7 +118,7 @@ try {
   check((await page.textContent(".eyebrow")).includes("Session 2 of 2"), "next session comes up");
   await page.click("[data-a=start]");
   await page.waitForSelector(".srow");
-  check((await page.inputValue('input[data-si="1"][data-f="kg"]')) === "" && (await page.getAttribute('input[data-si="1"][data-f="kg"]', "placeholder")) === "8", "coach's target load is suggested");
+  check((await page.inputValue('input[data-si="1"][data-f="kg"]')) === "8" && (await page.getAttribute('input[data-si="1"][data-f="kg"]', "data-pre")) === "", "coach's target load is pre-filled");
   await page.click("[data-a=toggleLast]");
   check((await page.textContent('.srow:nth-of-type(3) .tgt')).includes("9 kg") || (await page.locator(".tgt", { hasText: "9 kg" }).count()) > 0, "Last shows what was lifted last time");
 

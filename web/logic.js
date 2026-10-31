@@ -212,6 +212,43 @@ export function suggest(target, last, idx, bodyweight) {
   return { kg: kg == null ? "" : fmtNum(kg), reps: reps == null ? "" : String(reps) };
 }
 
+// The numbers already in each set's boxes before anything is typed. sets: [{ type, kg, reps }],
+// kg and reps as typed ("" when not). The first working set comes from suggest(); each one
+// after it copies the working set before it: what was typed there, else what was pre-filled
+// there. Warm-ups ramp towards the first working set's suggestion and don't feed the rest.
+export function prefills(target, sets, last, bodyweight, minKg = 0) {
+  const first = suggest(target, last, 0, bodyweight);
+  const warmups = sets.filter((s) => s.type === "W").length;
+  let w = 0;
+  let prev = null;
+  return sets.map((s) => {
+    if (s.type === "W") return suggestWarmup(first, bodyweight, w++, warmups, minKg);
+    const pre = prev || first;
+    prev = { kg: fmtNum(s.kg !== "" ? s.kg : pre.kg), reps: fmtNum(s.reps !== "" ? s.reps : pre.reps) };
+    return pre;
+  });
+}
+
+// What a set's reps count. The Sheet writes all three as plain numbers ("30", "30-40"), so it's
+// read from the exercise: a unit in the reps text, then carries, then holds and stretches by name.
+export function repsUnit(name, lib = {}, target = null) {
+  const text = norm(target && target.reps ? target.reps.text : "");
+  if (/\d\s*(s|secs?|seconds?|mins?|minutes?)$/.test(text)) return "sec";
+  if (/\d\s*(m|metres?|meters?)$/.test(text)) return "m";
+  const n = norm(name);
+  if (norm(lib.pattern) === "carry" || /\b(carry|walk)\b/.test(n)) return "m";
+  if (/\b(plank|hold|hang|stretch|wall sit)\b/.test(n)) return "sec";
+  return "reps";
+}
+
+// Over 50 reps in one set is usually a slip of the thumb (151 for 15). Seconds and metres
+// aren't checked, nor a number the client has already said is right (`confirmed`).
+export const MAX_REPS = 50;
+export function tooManyReps(reps, unit, confirmed = []) {
+  const n = numOrNull(reps);
+  return unit === "reps" && n != null && n > MAX_REPS && !confirmed.some((c) => numOrNull(c) === n);
+}
+
 // Warm-ups climb towards the first working set: light and longer first, heavier and
 // shorter last. [share of the working load, reps] for 1, 2, 3 and 4+ warm-up sets.
 const RAMPS = [

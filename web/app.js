@@ -312,17 +312,15 @@ function numbering(ex) {
 // Barbell warm-ups start at the empty bar.
 const barKg = (lib) => (L.splitList(lib.equipment).some((q) => L.norm(q) === "barbell") ? 20 : 0);
 
+// The pre-filled numbers for every set of an exercise (see L.prefills).
 function suggestions(ex, last, lib) {
-  const bw = !!lib.bodyweight;
-  const nums = numbering(ex);
-  const firstWorking = L.suggest(ex.target, last, 0, bw);
-  const warmups = ex.sets.filter((s) => s.type === "W").length;
-  return ex.sets.map((s, i) =>
-    s.type === "W"
-      ? L.suggestWarmup(firstWorking, bw, nums[i] - 1, warmups, barKg(lib))
-      : L.suggest(ex.target, last, nums[i] - 1, bw),
-  );
+  return L.prefills(ex.target, ex.sets, last, !!lib.bodyweight, barKg(lib));
 }
+
+// A box's value: what was typed, else its pre-fill, marked data-pre so the two can be told
+// apart. Ticked sets show only what was logged.
+const isPre = (s, sg, f) => s[f] === "" && !s.done && sg[f] !== "";
+const boxValue = (s, sg, f) => `value="${esc(isPre(s, sg, f) ? sg[f] : s[f])}"${isPre(s, sg, f) ? " data-pre" : ""}`;
 
 function viewWorkout(d) {
   const a = S.active;
@@ -401,8 +399,8 @@ function viewWorkout(d) {
       return `<div class="srow ${grid}${s.done ? " done" : ""}">
         <button class="badge${s.type === "W" ? " w" : ""}" data-a="setmenu" data-si="${i}" aria-label="Set ${n} options">${n}</button>
         <div class="tgt${muted ? " muted" : ""}">${col.split(" × ").map((p, j) => `<span>${j ? "× " : ""}${esc(p)}</span>`).join(" ")}</div>
-        ${bw ? "" : `<input class="cell" data-f="kg" data-si="${i}" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="${esc(sg.kg)}" value="${esc(s.kg)}" aria-label="Set ${n} kilograms${lib.per_hand ? " per hand" : ""}">`}
-        <input class="cell" data-f="reps" data-si="${i}" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="${esc(sg.reps)}" value="${esc(s.reps)}" aria-label="Set ${n} reps${lib.per_side ? " each side" : ""}">
+        ${bw ? "" : `<input class="cell" data-f="kg" data-si="${i}" inputmode="decimal" enterkeyhint="next" autocomplete="off" placeholder="${esc(sg.kg)}" ${boxValue(s, sg, "kg")} aria-label="Set ${n} kilograms${lib.per_hand ? " per hand" : ""}">`}
+        <input class="cell" data-f="reps" data-si="${i}" inputmode="numeric" enterkeyhint="done" autocomplete="off" placeholder="${esc(sg.reps)}" ${boxValue(s, sg, "reps")} aria-label="Set ${n} reps${lib.per_side ? " each side" : ""}">
         ${rirCell}
         <button class="chk${s.done ? " on" : ""}" data-a="tick" data-si="${i}" aria-pressed="${s.done}" aria-label="Set ${n} done">${s.done ? icon("check", 20) : ""}</button>
       </div>`;
@@ -610,6 +608,17 @@ const SHEETS = {
       </div>
       <button class="btn btn-secondary" data-a="closeSheet">Cancel</button>`;
   },
+  bigReps() {
+    const { x, si, reps } = S.sheet;
+    const ex = S.active.exercises[x];
+    const n = numbering(ex)[si];
+    const r = esc(reps);
+    return `<h2 class="sh-title">${r} reps?</h2>
+      <p class="sh-sub">${esc(ex.name)} · ${ex.sets[si].type === "W" ? "warm-up" : `set ${n}`}</p>
+      <p class="sh-p">That's a lot for one set. Check the number before it's saved.</p>
+      <button class="btn btn-primary" data-a="repsFix">Fix the number</button>
+      <button class="btn btn-secondary" data-a="repsOk" data-si="${si}">Yes, ${r} is right</button>`;
+  },
   info() {
     const d = data();
     const ex = cur();
@@ -815,8 +824,10 @@ function toast(msg, ms = 2400) {
 
 /* ---------- workout actions ---------- */
 
+// kg and reps hold only what the client typed until the set is ticked; `prefilled` then lists
+// the boxes that were filled from their pre-fill instead.
 function newSet(type) {
-  return { id: S.active.nextSetId++, type, kg: "", reps: "", rir: "", done: false, at: "" };
+  return { id: S.active.nextSetId++, type, kg: "", reps: "", rir: "", done: false, at: "", prefilled: [] };
 }
 
 function startWorkout(n) {
@@ -909,18 +920,38 @@ function startRest(sec) {
   S.active.rest = { endsAt: Date.now() + sec * 1000, total: sec, fired: false };
 }
 
-// Fill empty boxes from the suggestion; returns the field still missing, if any.
-function commitSuggestion(ex, si, d) {
+// What a set would be logged with: what's typed, else what's pre-filled.
+function valuesFor(ex, si, d) {
   const lib = libFor(d, ex.name);
   const bw = !!lib.bodyweight;
-  const last = L.lastPerformance(d.log, ex.name, S.active.instance_id);
-  const sg = suggestions(ex, last, lib)[si];
+  const sg = suggestions(ex, L.lastPerformance(d.log, ex.name, S.active.instance_id), lib)[si];
   const s = ex.sets[si];
-  if (!bw && s.kg === "") s.kg = sg.kg;
-  if (s.reps === "") s.reps = sg.reps;
-  if (!bw && s.kg === "") return "kg";
-  if (s.reps === "") return "reps";
+  return { kg: bw ? "" : s.kg !== "" ? s.kg : sg.kg, reps: s.reps !== "" ? s.reps : sg.reps, bw };
+}
+
+// Fill empty boxes from their pre-fill, noting which, so unticking lets them follow the set
+// above again. Returns the box still missing, if any, and then changes nothing.
+function commitSuggestion(ex, si, d) {
+  const v = valuesFor(ex, si, d);
+  if (!v.bw && v.kg === "") return "kg";
+  if (v.reps === "") return "reps";
+  const s = ex.sets[si];
+  s.prefilled = ["kg", "reps"].filter((f) => s[f] === "" && v[f] !== "");
+  for (const f of s.prefilled) s[f] = v[f];
   return null;
+}
+
+// Before logging set si of exercise x: over 50 reps on something counted in reps asks first.
+// `then` is the action to run again once they say the number is right.
+function askReps(x, si, then) {
+  const d = data();
+  const ex = S.active.exercises[x];
+  const { reps } = valuesFor(ex, si, d);
+  if (!L.tooManyReps(reps, L.repsUnit(ex.name, libFor(d, ex.name), ex.target), ex.repsOk)) return false;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  $toast.classList.remove("show"); // an effort nudge would sit on the sheet's buttons
+  openSheet({ type: "bigReps", x, si, reps, then });
+  return true;
 }
 
 function focusCell(si, f) {
@@ -1091,7 +1122,7 @@ const A = {
         // The planned load was for the planned exercise; suggestions come from this one's history instead.
         ex.target = { ...ex.target, kg: null };
       }
-      ex.sets.forEach((s) => Object.assign(s, { kg: "", reps: "", rir: "" }));
+      ex.sets.forEach((s) => Object.assign(s, { kg: "", reps: "", rir: "", prefilled: [] }));
       ex.showLast = false;
       saveActive();
       toast(ex.swappedFrom ? `Swapped to ${ex.name}` : `Back to ${ex.name}`);
@@ -1126,12 +1157,16 @@ const A = {
     const s = ex.sets[si];
     if (s.done) {
       s.done = false;
+      // Boxes filled from their pre-fill go back to following the set above.
+      for (const f of s.prefilled || []) s[f] = "";
+      s.prefilled = [];
       api.enqueue(S.token, { type: "delete_set", entry_id: entryId(S.active.idx, s) });
       queueExercise(S.active.idx);
       saveActive();
       render();
       return;
     }
+    if (askReps(S.active.idx, si, "tick")) return;
     const missing = commitSuggestion(ex, si, d);
     if (missing) {
       saveActive();
@@ -1153,6 +1188,7 @@ const A = {
     const d = data();
     const ex = cur();
     if (ex.sets.length && ex.sets.every((s) => s.done)) return;
+    if (ex.sets.some((s, si) => !s.done && askReps(S.active.idx, si, "tickAll"))) return;
     for (let si = 0; si < ex.sets.length; si++) {
       const s = ex.sets[si];
       if (s.done) continue;
@@ -1193,6 +1229,26 @@ const A = {
   setmenu(el) {
     openSheet({ type: "setmenu", si: Number(el.dataset.si) });
   },
+  // From the "151 reps?" sheet: keep the number (and don't ask about it again on this exercise),
+  // then carry on with the tick it interrupted. el carries data-si for tick.
+  repsOk(el) {
+    const { x, reps, then } = S.sheet;
+    const ex = S.active.exercises[x];
+    ex.repsOk = [...(ex.repsOk || []), reps];
+    S.sheet = null;
+    saveActive();
+    A[then](el);
+  },
+  repsFix() {
+    const { x, si } = S.sheet;
+    S.sheet = null;
+    S.active.idx = x;
+    S.view = "workout";
+    saveActive();
+    render();
+    centerTile();
+    focusCell(si, "reps");
+  },
   toggleType() {
     const ex = cur();
     const si = S.sheet.si;
@@ -1224,6 +1280,7 @@ const A = {
     const at = new Date().toISOString();
     let logged = 0;
     let blank = 0;
+    if (S.active.exercises.some((ex, x) => ex.sets.some((s, si) => !s.done && s.type === "N" && askReps(x, si, "logAll")))) return;
     S.active.exercises.forEach((ex, i) => {
       let changed = false;
       ex.sets.forEach((s, si) => {
@@ -1348,8 +1405,60 @@ document.addEventListener("input", (e) => {
   const clean = f === "kg" ? cleanKg(el.value) : el.value.replace(/\D/g, "").slice(0, 3);
   if (clean !== el.value) el.value = clean;
   s[f] = clean;
+  // Typed now, not pre-filled. An emptied box goes back to its pre-fill when it's left.
+  s.prefilled = (s.prefilled || []).filter((x) => x !== f);
+  el.removeAttribute("data-pre");
+  refreshPrefills();
   saveActiveSoon();
   if (s.done) queueExerciseSoon(S.active.idx);
+});
+
+// Sets below the one being typed in follow it straight away. Only their boxes change, so the
+// keyboard stays up; a box with something typed in it is never touched.
+function refreshPrefills() {
+  if (S.view !== "workout" || !S.active) return;
+  const d = data();
+  const ex = cur();
+  const sugg = suggestions(ex, L.lastPerformance(d.log, ex.name, S.active.instance_id), libFor(d, ex.name));
+  $app.querySelectorAll("input.cell[data-si]").forEach((el) => {
+    const si = Number(el.dataset.si);
+    const s = ex.sets[si];
+    const f = el.dataset.f;
+    if (!s || s[f] !== "" || el === document.activeElement) return;
+    el.placeholder = sugg[si][f];
+    el.value = s.done ? "" : sugg[si][f];
+    el.toggleAttribute("data-pre", isPre(s, sugg[si], f));
+  });
+}
+
+// Tapping a box with a number in it selects the number, so typing replaces it. Phones can put
+// the cursor back as the tap ends, so it's selected again then, unless typing has started.
+let tapped = null;
+function reselect() {
+  const t = tapped;
+  if (t && document.activeElement === t.el && t.el.value === t.v && Date.now() - t.at < 1000) t.el.setSelectionRange(0, t.v.length);
+}
+document.addEventListener("focusin", (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches("input.cell") || !el.value) return;
+  tapped = { el, v: el.value, at: Date.now() };
+  reselect();
+  setTimeout(reselect, 0);
+});
+document.addEventListener("click", (e) => {
+  if (tapped && e.target === tapped.el) reselect();
+});
+// And in case a phone drops the selection anyway: the first key in a pre-filled box replaces it.
+document.addEventListener("beforeinput", (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches("input.cell[data-pre]") || e.inputType !== "insertText" || !e.data) return;
+  e.preventDefault();
+  el.value = e.data;
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
+document.addEventListener("focusout", (e) => {
+  if (e.target.matches && e.target.matches("input.cell[data-si]")) setTimeout(refreshPrefills, 0);
 });
 
 document.addEventListener("keydown", (e) => {
